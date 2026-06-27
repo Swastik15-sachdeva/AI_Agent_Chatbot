@@ -1,7 +1,12 @@
 export const codingTool = {
-  name: 'coding_tool',
-  description: 'Placeholder tool for code editing and execution',
-  execute: async (args: any) => {
-    return { success: true, message: 'Coding tool placeholder executed' };
+  name: 'write_code',
+  description: 'Write or format code blocks for the user.',
+  execute: async (args: { language: string; code: string; explanation: string }) => {
+    return {
+      success: true,
+      language: args.language,
+      code: args.code,
+      explanation: args.explanation
+    };
   }
 };
