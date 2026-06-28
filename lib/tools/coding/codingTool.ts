@@ -1,12 +1,18 @@
 export const codingTool = {
-  name: 'write_code',
-  description: 'Write or format code blocks for the user.',
-  execute: async (args: { language: string; code: string; explanation: string }) => {
+  name: 'coding_assistant',
+  description: 'Helper to format and process generated, debugged, refactored, or explained code blocks.',
+  execute: async (args: {
+    action: 'generate' | 'debug' | 'explain' | 'refactor';
+    language: string;
+    code: string;
+    explanation?: string;
+  }) => {
     return {
       success: true,
+      action: args.action,
       language: args.language,
       code: args.code,
-      explanation: args.explanation
+      explanation: args.explanation || ''
     };
   }
 };

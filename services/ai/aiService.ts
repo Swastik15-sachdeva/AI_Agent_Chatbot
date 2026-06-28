@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import OpenAI from 'openai';
 import { BrowserService } from '../browser/browserService';
+import { codingTool } from '../../lib/tools/coding/codingTool';
 
 export interface AgentStep {
   type: 'thought' | 'tool_call' | 'tool_result' | 'error';
@@ -28,10 +29,16 @@ export class AiService {
   async generateText(
     userMessage: string,
     history: any[] = [],
-    isThinkingEnabled: boolean = false
+    isThinkingEnabled: boolean = false,
+    selectedModel: 'gemini' | 'openrouter' = 'gemini'
   ): Promise<ChatResponse> {
     const steps: AgentStep[] = [];
     const geminiKey = process.env.GEMINI_API_KEY;
+
+    // Check if user selected OpenRouter directly
+    if (selectedModel === 'openrouter') {
+      return this.runOpenRouterFallback(userMessage, history, steps);
+    }
 
     // Check if Gemini key is available
     if (!geminiKey || geminiKey.includes('your_gemini')) {
@@ -104,6 +111,24 @@ export class AiService {
                 topic: { type: Type.STRING, description: 'The topic or query to research in detail.' }
               },
               required: ['topic']
+            }
+          },
+          {
+            name: 'coding_assistant',
+            description: 'Generate, debug, explain, or refactor code. Use this whenever the user asks for code creation, explanation, debugging, or project layouts.',
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                action: {
+                  type: Type.STRING,
+                  description: 'The type of action to perform.',
+                  enum: ['generate', 'debug', 'explain', 'refactor']
+                },
+                language: { type: Type.STRING, description: 'The programming language of the code.' },
+                code: { type: Type.STRING, description: 'The code content.' },
+                explanation: { type: Type.STRING, description: 'Optional explanation, context, or notes.' }
+              },
+              required: ['action', 'language', 'code']
             }
           }
         ];
@@ -179,6 +204,14 @@ export class AiService {
             } else if (name === 'deep_research') {
               const topic = (args as any).topic;
               result = await this.runDeepResearch(topic, steps);
+            } else if (name === 'coding_assistant') {
+              const codingArgs = args as any;
+              result = await codingTool.execute({
+                action: codingArgs.action,
+                language: codingArgs.language,
+                code: codingArgs.code,
+                explanation: codingArgs.explanation
+              });
             } else {
               result = { error: 'Unknown tool requested.' };
             }

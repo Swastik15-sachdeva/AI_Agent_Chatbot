@@ -8,11 +8,12 @@ import { AiService, ChatResponse } from '@/services/ai/aiService';
 export async function handleChatRequest(
   userMessage: string,
   history: any[],
-  isThinkingEnabled: boolean
+  isThinkingEnabled: boolean,
+  selectedModel: 'gemini' | 'openrouter'
 ): Promise<ChatResponse> {
   try {
     const aiService = new AiService();
-    return await aiService.generateText(userMessage, history, isThinkingEnabled);
+    return await aiService.generateText(userMessage, history, isThinkingEnabled, selectedModel);
   } catch (error: any) {
     console.error('Server Action Chat Request Error:', error.message);
     return {

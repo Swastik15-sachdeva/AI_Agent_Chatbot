@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { handleChatRequest } from '@/app/actions';
 import { Loader2 } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 interface Message {
   id: string;
@@ -23,7 +24,7 @@ interface ChatSession {
 }
 
 export default function HomePage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const router = useRouter();
 
   // Chat sessions state
@@ -46,19 +47,35 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [isAuthenticated, router]);
 
-  // Load chat sessions from localStorage on mount (resilient fallback)
+  // Load chat sessions from Supabase with fallback to localStorage
   useEffect(() => {
-    if (!isAuthenticated) return;
-    try {
-      const saved = localStorage.getItem('agent_chat_sessions');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setSessions(parsed);
-        if (parsed.length > 0) {
-          setActiveSessionId(parsed[0].id);
-        } else {
-          // If empty, create initial session
+    if (!isAuthenticated || !user) return;
+
+    async function loadSessionsFromSupabase() {
+      if (!isSupabaseConfigured || !supabase) {
+        loadFromLocalStorage();
+        return;
+      }
+
+      try {
+        // 1. Fetch sessions
+        const { data: sessionsData, error: sessionsError } = await supabase
+          .from('chat_sessions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (sessionsError) throw sessionsError;
+
+        if (!sessionsData || sessionsData.length === 0) {
+          // Create initial session in Supabase
           const initialId = Math.random().toString(36).substring(2, 9);
+          const { error: createError } = await supabase
+            .from('chat_sessions')
+            .insert({ id: initialId, title: 'New Conversation', user_id: user.id });
+
+          if (createError) throw createError;
+
           const initialSession: ChatSession = {
             id: initialId,
             title: 'New Conversation',
@@ -66,21 +83,77 @@ export default function HomePage() {
           };
           setSessions([initialSession]);
           setActiveSessionId(initialId);
+          return;
         }
-      } else {
-        const initialId = Math.random().toString(36).substring(2, 9);
-        const initialSession: ChatSession = {
-          id: initialId,
-          title: 'New Conversation',
-          messages: []
-        };
-        setSessions([initialSession]);
-        setActiveSessionId(initialId);
+
+        // 2. Fetch messages for these sessions
+        const { data: messagesData, error: messagesError } = await supabase
+          .from('messages')
+          .select('*')
+          .in('session_id', sessionsData.map(s => s.id))
+          .order('created_at', { ascending: true });
+
+        if (messagesError) throw messagesError;
+
+        // 3. Assemble chat sessions with messages
+        const assembledSessions: ChatSession[] = sessionsData.map(s => {
+          const sessionMsgs = (messagesData || [])
+            .filter(m => m.session_id === s.id)
+            .map(m => ({
+              id: m.id,
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              steps: typeof m.steps === 'string' ? JSON.parse(m.steps) : m.steps
+            }));
+
+          return {
+            id: s.id,
+            title: s.title,
+            messages: sessionMsgs
+          };
+        });
+
+        setSessions(assembledSessions);
+        setActiveSessionId(assembledSessions[0].id);
+
+      } catch (err: any) {
+        console.warn('Failed to load from Supabase (falling back to localStorage):', err.message);
+        loadFromLocalStorage();
       }
-    } catch (err) {
-      console.error('Failed to load chat sessions:', err);
     }
-  }, [isAuthenticated]);
+
+    function loadFromLocalStorage() {
+      try {
+        const saved = localStorage.getItem('agent_chat_sessions');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setSessions(parsed);
+          if (parsed.length > 0) {
+            setActiveSessionId(parsed[0].id);
+          } else {
+            createInitialLocalSession();
+          }
+        } else {
+          createInitialLocalSession();
+        }
+      } catch (err) {
+        console.error('Failed to load from localStorage:', err);
+      }
+    }
+
+    function createInitialLocalSession() {
+      const initialId = Math.random().toString(36).substring(2, 9);
+      const initialSession: ChatSession = {
+        id: initialId,
+        title: 'New Conversation',
+        messages: []
+      };
+      setSessions([initialSession]);
+      setActiveSessionId(initialId);
+    }
+
+    loadSessionsFromSupabase();
+  }, [isAuthenticated, user]);
 
   // Save sessions to localStorage when they change
   const saveSessions = (updatedSessions: ChatSession[]) => {
@@ -88,7 +161,7 @@ export default function HomePage() {
     localStorage.setItem('agent_chat_sessions', JSON.stringify(updatedSessions));
   };
 
-  const handleCreateSession = () => {
+  const handleCreateSession = async () => {
     const newId = Math.random().toString(36).substring(2, 9);
     const newSession: ChatSession = {
       id: newId,
@@ -97,6 +170,17 @@ export default function HomePage() {
     };
     saveSessions([newSession, ...sessions]);
     setActiveSessionId(newId);
+
+    // Sync to Supabase
+    if (isSupabaseConfigured && supabase && user) {
+      try {
+        await supabase
+          .from('chat_sessions')
+          .insert({ id: newId, title: 'New Conversation', user_id: user.id });
+      } catch (err: any) {
+        console.warn('Failed to sync new session to Supabase:', err.message);
+      }
+    }
   };
 
   const handleSelectSession = (id: string) => {
@@ -108,6 +192,7 @@ export default function HomePage() {
     files: AttachedFile[];
     pastedContent: any[];
     isThinkingEnabled: boolean;
+    selectedModel: 'gemini' | 'openrouter';
   }) => {
     if (!activeSessionId) return;
 
@@ -124,15 +209,16 @@ export default function HomePage() {
 
     const updatedMessages = [...currentSession.messages, userMsg];
     
+    // Determine if we need to update session title in Supabase/local
+    const shouldRename = currentSession.title === 'New Conversation';
+    const newTitle = shouldRename
+      ? data.message.length > 30 ? data.message.substring(0, 30) + '...' : data.message
+      : currentSession.title;
+
     // Update session list locally with user message
     const updatedSessions = sessions.map(s => {
       if (s.id === activeSessionId) {
-        // If it was named "New Conversation", rename it to the user's prompt snippet
-        const title = s.title === 'New Conversation'
-          ? data.message.length > 30 ? data.message.substring(0, 30) + '...' : data.message
-          : s.title;
-
-        return { ...s, title, messages: updatedMessages };
+        return { ...s, title: newTitle, messages: updatedMessages };
       }
       return s;
     });
@@ -140,12 +226,36 @@ export default function HomePage() {
     saveSessions(updatedSessions);
     setIsLoading(true);
 
+    // Sync user message to Supabase
+    if (isSupabaseConfigured && supabase && user) {
+      try {
+        if (shouldRename) {
+          await supabase
+            .from('chat_sessions')
+            .update({ title: newTitle })
+            .eq('id', activeSessionId);
+        }
+        await supabase
+          .from('messages')
+          .insert({
+            id: userMsgId,
+            session_id: activeSessionId,
+            role: 'user',
+            content: data.message,
+            steps: []
+          });
+      } catch (err: any) {
+        console.warn('Failed to sync user message to Supabase:', err.message);
+      }
+    }
+
     try {
       // Send history and current message to server action
       const response = await handleChatRequest(
         data.message,
         currentSession.messages, // pass current history
-        data.isThinkingEnabled
+        data.isThinkingEnabled,
+        data.selectedModel
       );
 
       // Create assistant response message object
@@ -162,16 +272,29 @@ export default function HomePage() {
       // Update sessions list with assistant response
       const finalSessions = sessions.map(s => {
         if (s.id === activeSessionId) {
-          // Keep title or set from first prompt if needed
-          const title = s.title === 'New Conversation'
-            ? data.message.length > 30 ? data.message.substring(0, 30) + '...' : data.message
-            : s.title;
-          return { ...s, title, messages: finalMessages };
+          return { ...s, title: newTitle, messages: finalMessages };
         }
         return s;
       });
 
       saveSessions(finalSessions);
+
+      // Sync assistant message to Supabase
+      if (isSupabaseConfigured && supabase && user) {
+        try {
+          await supabase
+            .from('messages')
+            .insert({
+              id: assistantMsgId,
+              session_id: activeSessionId,
+              role: 'assistant',
+              content: response.response,
+              steps: response.steps || []
+            });
+        } catch (err: any) {
+          console.warn('Failed to sync assistant response to Supabase:', err.message);
+        }
+      }
     } catch (err: any) {
       console.error('Failed to get chat response:', err);
       // Append error message to chat window

@@ -156,6 +156,7 @@ interface ClaudeChatInputProps {
         files: AttachedFile[];
         pastedContent: any[];
         isThinkingEnabled: boolean;
+        selectedModel: 'gemini' | 'openrouter';
     }) => void;
 }
 
@@ -169,9 +170,23 @@ export const ClaudeChatInput: React.FC<ClaudeChatInputProps> = ({ onSendMessage 
     const [pastedContent, setPastedContent] = useState<any[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
+    const [selectedModel, setSelectedModel] = useState<'gemini' | 'openrouter'>('gemini');
+    const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const modelMenuRef = useRef<HTMLDivElement>(null);
+
+    // Click outside listener for model menu dropdown
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (modelMenuRef.current && !modelMenuRef.current.contains(event.target as Node)) {
+                setIsModelMenuOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     // Auto-resize textarea
     useEffect(() => {
@@ -271,7 +286,8 @@ export const ClaudeChatInput: React.FC<ClaudeChatInputProps> = ({ onSendMessage 
             message,
             files,
             pastedContent,
-            isThinkingEnabled
+            isThinkingEnabled,
+            selectedModel
         });
         setMessage("");
         setFiles([]);
@@ -369,6 +385,52 @@ export const ClaudeChatInput: React.FC<ClaudeChatInputProps> = ({ onSendMessage 
                                 >
                                     <Icons.Thinking className="w-5 h-5" />
                                 </button>
+                            </div>
+
+                            {/* Model Selector Dropdown */}
+                            <div className="relative" ref={modelMenuRef}>
+                                <button
+                                    onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-text-400 hover:text-text-200 hover:bg-bg-200 dark:hover:bg-zinc-800 rounded-lg transition-colors border border-bg-300 dark:border-zinc-700/50 cursor-pointer h-8 select-none"
+                                    type="button"
+                                >
+                                    <span>{selectedModel === 'gemini' ? 'Gemini (Default)' : 'OpenRouter'}</span>
+                                    <ChevronDown className="w-3.5 h-3.5 text-text-400" />
+                                </button>
+                                {isModelMenuOpen && (
+                                    <div className="absolute left-0 bottom-full mb-1.5 w-44 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg z-50 p-1 space-y-0.5 animate-fade-in">
+                                        <button
+                                            onClick={() => {
+                                                setSelectedModel('gemini');
+                                                setIsModelMenuOpen(false);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-lg transition-colors text-left cursor-pointer
+                                                ${selectedModel === 'gemini'
+                                                    ? 'bg-accent/10 text-accent font-medium'
+                                                    : 'hover:bg-bg-200 text-text-300 hover:text-text-100 dark:hover:bg-zinc-800'}
+                                            `}
+                                            type="button"
+                                        >
+                                            <span>Google Gemini</span>
+                                            {selectedModel === 'gemini' && <Check className="w-3.5 h-3.5" />}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setSelectedModel('openrouter');
+                                                setIsModelMenuOpen(false);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-lg transition-colors text-left cursor-pointer
+                                                ${selectedModel === 'openrouter'
+                                                    ? 'bg-accent/10 text-accent font-medium'
+                                                    : 'hover:bg-bg-200 text-text-300 hover:text-text-100 dark:hover:bg-zinc-800'}
+                                            `}
+                                            type="button"
+                                        >
+                                            <span>OpenRouter (Nemotron)</span>
+                                            {selectedModel === 'openrouter' && <Check className="w-3.5 h-3.5" />}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
