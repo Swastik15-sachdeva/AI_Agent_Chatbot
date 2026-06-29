@@ -177,6 +177,64 @@ export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
   );
 }
 
+function AgentStepRow({ step, getStepIcon }: { step: AgentStep; getStepIcon: (type: string) => React.ReactNode }) {
+  const [showContent, setShowContent] = useState(step.type !== 'tool_result');
+  const [showImage, setShowImage] = useState(false);
+
+  return (
+    <div className="flex gap-2.5 items-start pl-1 border-l-2 border-zinc-300 dark:border-zinc-800 ml-1.5 pb-2">
+      <div className="w-5 h-5 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center shrink-0 shadow-xs">
+        {getStepIcon(step.type)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-zinc-800 dark:text-zinc-200">{step.title}</span>
+          <div className="flex items-center gap-2">
+            {step.screenshot && (
+              <button
+                onClick={() => setShowImage(!showImage)}
+                className="flex items-center gap-1 text-[10px] font-medium text-accent hover:underline cursor-pointer"
+              >
+                {showImage ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                <span>Screenshot</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowContent(!showContent)}
+              className="text-[10px] font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
+            >
+              {showContent ? 'Hide' : 'Show Details'}
+            </button>
+          </div>
+        </div>
+
+        {showContent && (
+          <div className="mt-1.5 text-zinc-600 dark:text-zinc-400 font-sans leading-relaxed whitespace-pre-wrap select-text">
+            {step.type === 'tool_call' || step.type === 'tool_result' ? (
+              <pre className="p-2 bg-zinc-200/50 dark:bg-zinc-900/50 rounded-lg text-[10px] font-mono overflow-x-auto">
+                {step.content}
+              </pre>
+            ) : (
+              <p>{step.content}</p>
+            )}
+          </div>
+        )}
+
+        {/* Render Screenshot if present and toggle set to show */}
+        {step.screenshot && showImage && (
+          <div className="mt-2 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 max-w-sm animate-fade-in shadow-sm">
+            <img
+              src={`data:image/jpeg;base64,${step.screenshot}`}
+              alt="Browser Capture"
+              className="w-full h-auto object-cover max-h-[220px]"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Renders the collapsible agent log execution trace.
  */
@@ -213,63 +271,9 @@ function AgentStepsTimeline({ steps }: { steps: AgentStep[] }) {
 
       {isOpen && (
         <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 space-y-4 max-h-[300px] overflow-y-auto scrollbar-thin">
-          {steps.map((step, idx) => {
-            const [showContent, setShowContent] = useState(step.type !== 'tool_result');
-            const [showImage, setShowImage] = useState(false);
-
-            return (
-              <div key={idx} className="flex gap-2.5 items-start pl-1 border-l-2 border-zinc-300 dark:border-zinc-800 ml-1.5 pb-2">
-                <div className="w-5 h-5 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center shrink-0 shadow-xs">
-                  {getStepIcon(step.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">{step.title}</span>
-                    <div className="flex items-center gap-2">
-                      {step.screenshot && (
-                        <button
-                          onClick={() => setShowImage(!showImage)}
-                          className="flex items-center gap-1 text-[10px] font-medium text-accent hover:underline cursor-pointer"
-                        >
-                          {showImage ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                          <span>Screenshot</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setShowContent(!showContent)}
-                        className="text-[10px] font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer"
-                      >
-                        {showContent ? 'Hide' : 'Show Details'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {showContent && (
-                    <div className="mt-1.5 text-zinc-600 dark:text-zinc-400 font-sans leading-relaxed whitespace-pre-wrap select-text">
-                      {step.type === 'tool_call' || step.type === 'tool_result' ? (
-                        <pre className="p-2 bg-zinc-200/50 dark:bg-zinc-900/50 rounded-lg text-[10px] font-mono overflow-x-auto">
-                          {step.content}
-                        </pre>
-                      ) : (
-                        <p>{step.content}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Render Screenshot if present and toggle set to show */}
-                  {step.screenshot && showImage && (
-                    <div className="mt-2 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 max-w-sm animate-fade-in shadow-sm">
-                      <img
-                        src={`data:image/jpeg;base64,${step.screenshot}`}
-                        alt="Browser Capture"
-                        className="w-full h-auto object-cover max-h-[220px]"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {steps.map((step, idx) => (
+            <AgentStepRow key={idx} step={step} getStepIcon={getStepIcon} />
+          ))}
         </div>
       )}
     </div>
