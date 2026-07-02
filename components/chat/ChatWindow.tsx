@@ -123,6 +123,14 @@ export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
                         tr: ({ node, ...props }) => <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors" {...props} />,
                         th: ({ node, ...props }) => <th className="px-3 py-2 font-medium tracking-wider" {...props} />,
                         td: ({ node, ...props }) => <td className="px-3 py-2 whitespace-normal break-words" {...props} />,
+                        a: ({ node, ...props }) => (
+                          <a 
+                            className="text-cyan-400 dark:text-cyan-300 hover:text-lime-400 dark:hover:text-lime-300 underline font-semibold transition-all duration-200 drop-shadow-[0_0_3px_rgba(34,211,238,0.5)] hover:drop-shadow-[0_0_6px_rgba(163,230,53,0.8)]" 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            {...props} 
+                          />
+                        ),
                         code: ({ node, className, children, ...props }) => {
                           const match = /language-(\w+)/.exec(className || '');
                           const lang = match ? match[1] : '';
