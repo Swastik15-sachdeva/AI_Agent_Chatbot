@@ -67,12 +67,13 @@ export interface OpenRouterToolCall {
   };
 }
 
-const BASE_SYSTEM_INSTRUCTION = "You are an advanced Agentic AI helper with real-time web access and multimodal processing capabilities. " +
+const getBaseSystemInstruction = () => "You are an advanced Agentic AI helper with real-time web access and multimodal processing capabilities. " +
   "You have tools available: web_search, web_scrape, deep_research, and image_generator. " +
   "1. Real-Time Data: If the user asks for real-time or external data (such as weather, news, sports updates, etc.), you MUST use the appropriate tool (web_search, web_scrape, or deep_research) to fetch this information. Never say you cannot access live details. " +
   "You MUST always provide the source links (complete clickable markdown hyperlinks, e.g. [Title of Source](URL)) to the websites you retrieved the real-time information from so that the user can verify them. Never output plain domains or text without markdown link markup. " +
   "2. Image Generation: If the user prompts you to generate, create, draw, or paint an image, you MUST call the `image_generator` tool. Once the tool returns the image bytes, you MUST render and display the image directly in your final response using standard markdown image syntax: `![AI Generated Image](data:image/jpeg;base64,<base64_data>)` (replace <base64_data> with the raw imageBytes from the tool response). " +
-  "3. Learning Resources: Whenever the user asks you about any topic, framework, programming language, or concept in detail, you MUST include a dedicated 'Recommended Learning Resources' section at the end of your response. In this section, provide direct, high-quality markdown links to the best learning platforms for that topic (such as Coursera, edX, Udemy, freeCodeCamp, official documentation, YouTube, etc.) along with a brief description of what each offers.";
+  "3. Learning Resources: Whenever the user asks you about any topic, framework, programming language, or concept in detail, you MUST include a dedicated 'Recommended Learning Resources' section at the end of your response. In this section, provide direct, high-quality markdown links to the best learning platforms for that topic (such as Coursera, edX, Udemy, freeCodeCamp, official documentation, YouTube, etc.) along with a brief description of what each offers. " +
+  `\n\nCurrent Date and Time: ${new Date().toLocaleString('en-US', { timeZoneName: 'short' })}`;
 
 export class AiService {
   /**
@@ -109,11 +110,12 @@ export class AiService {
       
       // Add system instruction depending on thinking mode
       const systemInstruction = isThinkingEnabled
-        ? `${BASE_SYSTEM_INSTRUCTION} Think deeply and step-by-step to formulate your thoughts and execute your plan.`
-        : BASE_SYSTEM_INSTRUCTION;
+        ? `${getBaseSystemInstruction()} Think deeply and step-by-step to formulate your thoughts and execute your plan.`
+        : getBaseSystemInstruction();
 
-      // Convert history
-      history.forEach(msg => {
+      // Convert history (keeping only the last 10 messages to save tokens)
+      const recentHistory = history.slice(-10);
+      recentHistory.forEach(msg => {
         if (msg.role === 'user') {
           chatHistory.push({ role: 'user', parts: [{ text: msg.content }] });
         } else if (msg.role === 'assistant' || msg.role === 'model') {
@@ -173,7 +175,7 @@ export class AiService {
 
         // Call Gemini
         const response = await ai.models.generateContent({
-          model: isThinkingEnabled ? 'gemini-2.5-pro' : 'gemini-2.5-flash',
+          model: isThinkingEnabled ? (process.env.GEMINI_THINKING_MODEL || 'gemini-2.5-pro') : (process.env.GEMINI_MODEL || 'gemini-1.5-flash'),
           contents: chatHistory,
           config: {
             systemInstruction,
@@ -332,7 +334,7 @@ export class AiService {
       // System instruction
       messages.push({
         role: 'system',
-        content: BASE_SYSTEM_INSTRUCTION
+        content: getBaseSystemInstruction()
       });
 
       // User history

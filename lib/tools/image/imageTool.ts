@@ -22,7 +22,7 @@ export const imageTool: AgentTool = {
     try {
       const ai = new GoogleGenAI({ apiKey: geminiKey });
       const response = await ai.models.generateImages({
-        model: 'imagen-3.0-generate-002',
+        model: process.env.GEMINI_IMAGE_MODEL || 'imagen-3.0-generate-002',
         prompt: prompt,
         config: {
           numberOfImages: 1,

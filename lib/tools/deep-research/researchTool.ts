@@ -16,7 +16,7 @@ export const researchTool: AgentTool = {
     const { topic } = args as { topic: string };
     const browserService = new BrowserService();
     try {
-      const searchResults = await browserService.searchDuckDuckGo(topic);
+      const searchResults = await browserService.searchWeb(topic);
       if (searchResults.length === 0) {
         return { message: `No search results found for: "${topic}"` };
       }

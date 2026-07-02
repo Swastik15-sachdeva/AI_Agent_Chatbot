@@ -1,5 +1,7 @@
 import { chromium } from 'playwright';
 
+const isHeadless = process.env.PLAYWRIGHT_HEADLESS !== 'false';
+
 export interface SearchResult {
   title: string;
   url: string;
@@ -15,33 +17,37 @@ export interface ScrapeResult {
 
 export class BrowserService {
   /**
-   * Performs a query search on DuckDuckGo using Playwright and parses results.
+   * Performs a query search on Yahoo using Playwright and parses results.
    */
-  async searchDuckDuckGo(query: string): Promise<SearchResult[]> {
-    let results = await this.queryDuckDuckGoDirect(query);
+  async searchWeb(query: string): Promise<SearchResult[]> {
+    let results = await this.queryYahooDirect(query);
     if (results.length === 0) {
-      console.log('DuckDuckGo search returned 0 results. Falling back to Bing Search...');
+      console.log('Yahoo search returned 0 results. Falling back to Bing Search...');
       results = await this.queryBingDirect(query);
     }
     return results;
   }
 
-  private async queryDuckDuckGoDirect(query: string): Promise<SearchResult[]> {
-    const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
+  private async queryYahooDirect(query: string): Promise<SearchResult[]> {
+    const browser = await chromium.launch({ headless: isHeadless, channel: 'chrome' });
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    });
+    const page = await context.newPage();
     try {
-      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+      const searchUrl = `https://search.yahoo.com/search?p=${encodeURIComponent(query)}`;
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await page.waitForTimeout(1000); // Wait for JS rendering just in case
 
       const results = await page.evaluate(() => {
-        const items = Array.from(document.querySelectorAll('.result'));
+        const items = Array.from(document.querySelectorAll('.algo-sr, .algo'));
         return items.slice(0, 5).map(item => {
-          const titleEl = item.querySelector('.result__a');
-          const snippetEl = item.querySelector('.result__snippet');
+          const a = item.querySelector('.compTitle a') as HTMLAnchorElement;
+          const snippetEl = item.querySelector('.compText, .fz-ms');
           
           return {
-            title: titleEl?.textContent?.trim() || '',
-            url: (titleEl as HTMLAnchorElement)?.href || '',
+            title: a ? a.textContent?.replace(/^.*?\\b(http|www|\\.\\w{2,3}\\b)/, '').trim() || a.innerText : '',
+            url: a ? a.href : '',
             snippet: snippetEl?.textContent?.trim() || ''
           };
         });
@@ -50,7 +56,7 @@ export class BrowserService {
       return results.filter(r => r.title && r.url);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Error during DuckDuckGo direct search:', errorMessage);
+      console.error('Error during Yahoo direct search:', errorMessage);
       return [];
     } finally {
       await browser.close();
@@ -58,7 +64,7 @@ export class BrowserService {
   }
 
   private async queryBingDirect(query: string): Promise<SearchResult[]> {
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: isHeadless, channel: 'chrome' });
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     });
@@ -112,7 +118,7 @@ export class BrowserService {
    * Navigates to a specific URL, extracts its text content, and takes a screenshot.
    */
   async scrapeUrl(url: string): Promise<ScrapeResult> {
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: isHeadless, channel: 'chrome' });
     const page = await browser.newPage();
     
     // Set a viewport size that is standard
