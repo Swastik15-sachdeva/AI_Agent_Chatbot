@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, User, ChevronDown, ChevronRight, Terminal, Eye, EyeOff, Search, FileCode2, Play, AlertCircle } from 'lucide-react';
+import { Bot, User, ChevronDown, ChevronRight, Terminal, Eye, EyeOff, Search, Play, AlertCircle } from 'lucide-react';
 import { AgentStep } from '@/services/ai/aiService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -104,6 +104,7 @@ export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
                   ) : (
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
+                      /* eslint-disable @typescript-eslint/no-unused-vars */
                       components={{
                         p: ({ node, ...props }) => <p className="mb-2 last:mb-0 text-sm leading-relaxed" {...props} />,
                         h1: ({ node, ...props }) => <h1 className="text-base font-serif font-bold my-2 text-zinc-900 dark:text-white" {...props} />,
@@ -122,7 +123,7 @@ export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
                         tr: ({ node, ...props }) => <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors" {...props} />,
                         th: ({ node, ...props }) => <th className="px-3 py-2 font-medium tracking-wider" {...props} />,
                         td: ({ node, ...props }) => <td className="px-3 py-2 whitespace-normal break-words" {...props} />,
-                        code: ({ className, children, ...props }) => {
+                        code: ({ node, className, children, ...props }) => {
                           const match = /language-(\w+)/.exec(className || '');
                           const lang = match ? match[1] : '';
                           const isInline = !className;
@@ -177,6 +178,7 @@ export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
                           );
                         }
                       }}
+                      /* eslint-enable @typescript-eslint/no-unused-vars */
                     >
                       {message.content}
                     </ReactMarkdown>
@@ -262,6 +264,7 @@ function AgentStepRow({ step, getStepIcon }: { step: AgentStep; getStepIcon: (ty
         {/* Render Screenshot if present and toggle set to show */}
         {step.screenshot && showImage && (
           <div className="mt-2 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 max-w-sm animate-fade-in shadow-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`data:image/jpeg;base64,${step.screenshot}`}
               alt="Browser Capture"

@@ -27,7 +27,7 @@ export class ToolRegistry {
   /**
    * Executes a tool by name and returns a unified execute result.
    */
-  static async executeTool(name: string, args: any): Promise<ToolExecuteResult> {
+  static async executeTool(name: string, args: Record<string, unknown>): Promise<ToolExecuteResult> {
     const tool = registeredTools.find(t => t.name === name);
     if (!tool) {
       throw new Error(`Tool "${name}" is not registered.`);

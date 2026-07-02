@@ -40,8 +40,9 @@ export default function AuthPage() {
     try {
       await login(loginEmail, loginPassword);
       router.push(redirectPath || "/");
-    } catch (err: any) {
-      setError(err.message || "Failed to log in.");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to log in.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -58,8 +59,9 @@ export default function AuthPage() {
     try {
       await signUp(signupEmail, signupPassword);
       router.push(redirectPath || "/");
-    } catch (err: any) {
-      setError(err.message || "Failed to sign up.");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to sign up.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

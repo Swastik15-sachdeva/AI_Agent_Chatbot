@@ -12,9 +12,10 @@ export const scrapeTool: AgentTool = {
     },
     required: ['url']
   },
-  execute: async (args: { url: string }) => {
+  execute: async (args: Record<string, unknown>) => {
+    const { url } = args as { url: string };
     const service = new BrowserService();
-    const scrapeRes = await service.scrapeUrl(args.url);
+    const scrapeRes = await service.scrapeUrl(url);
     return {
       output: {
         title: scrapeRes.title,

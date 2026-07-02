@@ -27,7 +27,9 @@ export default function Sidebar({
     const isDarkTheme = document.documentElement.classList.contains('dark') || 
                         localStorage.getItem('theme') === 'dark' ||
                         window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setIsDark(isDarkTheme);
+    Promise.resolve().then(() => {
+      setIsDark(isDarkTheme);
+    });
     if (isDarkTheme) {
       document.documentElement.classList.add('dark');
       localStorage.setItem('theme', 'dark');

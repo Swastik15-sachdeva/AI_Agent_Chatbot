@@ -15,13 +15,64 @@ export interface ChatResponse {
   steps: AgentStep[];
 }
 
+export interface ChatHistoryMessage {
+  role: string;
+  content: string;
+}
+
+export interface GeminiContentPart {
+  text?: string;
+  inlineData?: {
+    mimeType: string;
+    data: string;
+  };
+  functionCall?: {
+    name: string;
+    args: Record<string, unknown>;
+  };
+  functionResponse?: {
+    name: string;
+    response: { output: unknown };
+  };
+}
+
+export interface GeminiContent {
+  role: string;
+  parts: GeminiContentPart[];
+}
+
+export interface OpenRouterMessagePart {
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: {
+    url: string;
+  };
+}
+
+export interface OpenRouterMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | OpenRouterMessagePart[];
+  tool_calls?: unknown[];
+  tool_call_id?: string;
+  name?: string;
+}
+
+export interface OpenRouterToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
 export class AiService {
   /**
    * Main entry point to orchestrate agent reasoning loop.
    */
   async generateText(
     userMessage: string,
-    history: any[] = [],
+    history: ChatHistoryMessage[] = [],
     isThinkingEnabled: boolean = false,
     selectedModel: 'gemini' | 'openrouter' = 'gemini',
     files?: Array<{ name: string; type: string; base64?: string }>
@@ -46,7 +97,7 @@ export class AiService {
       
       // Build conversation history in Gemini API format
       // Roles: 'user', 'model', 'tool'
-      const chatHistory: any[] = [];
+      const chatHistory: GeminiContent[] = [];
       
       // Add system instruction depending on thinking mode
       const systemInstruction = isThinkingEnabled
@@ -63,7 +114,7 @@ export class AiService {
       });
 
       // Add new user prompt with optional files/images
-      const userParts: any[] = [{ text: userMessage }];
+      const userParts: GeminiContentPart[] = [{ text: userMessage }];
       
       if (files && files.length > 0) {
         files.forEach(file => {
@@ -127,15 +178,17 @@ export class AiService {
         }
 
         // We have function calls! Group thoughts (if any) and function calls in a single model turn.
-        const modelParts: any[] = [];
+        const modelParts: GeminiContentPart[] = [];
         if (response.text) {
           modelParts.push({ text: response.text });
         }
         
         for (const call of functionCalls) {
-          modelParts.push({
-            functionCall: { name: call.name, args: call.args }
-          });
+          if (call.name) {
+            modelParts.push({
+              functionCall: { name: call.name, args: call.args as Record<string, unknown> }
+            });
+          }
         }
         
         chatHistory.push({
@@ -144,7 +197,7 @@ export class AiService {
         });
 
         // Now execute all calls in parallel/sequence and build a single tool response turn
-        const toolResponseParts: any[] = [];
+        const toolResponseParts: GeminiContentPart[] = [];
         
         for (const call of functionCalls) {
           const { name, args } = call;
@@ -156,16 +209,17 @@ export class AiService {
             content: `Arguments: ${JSON.stringify(args, null, 2)}`
           });
 
-          let result: any;
+          let result: unknown;
           let screenshot: string | undefined;
 
           try {
             // Execute the tool dynamically using the ToolRegistry
-            const toolResult = await ToolRegistry.executeTool(name, args);
+            const toolResult = await ToolRegistry.executeTool(name, args as Record<string, unknown>);
             result = toolResult.output;
             screenshot = toolResult.screenshot;
-          } catch (toolErr: any) {
-            result = { error: `Tool execution failed: ${toolErr.message}` };
+          } catch (toolErr) {
+            const errorMessage = toolErr instanceof Error ? toolErr.message : String(toolErr);
+            result = { error: `Tool execution failed: ${errorMessage}` };
           }
 
           // Record tool output step
@@ -197,12 +251,13 @@ export class AiService {
         steps
       };
 
-    } catch (err: any) {
-      console.error('Gemini execution error, falling back to OpenRouter:', err.message);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Gemini execution error, falling back to OpenRouter:', errorMessage);
       steps.push({
         type: 'error',
         title: 'Gemini Error',
-        content: `Error: ${err.message}. Falling back to OpenRouter...`
+        content: `Error: ${errorMessage}. Falling back to OpenRouter...`
       });
       return this.runOpenRouterFallback(userMessage, history, steps, files);
     }
@@ -213,7 +268,7 @@ export class AiService {
    */
   private async runOpenRouterFallback(
     userMessage: string,
-    history: any[],
+    history: ChatHistoryMessage[],
     steps: AgentStep[],
     files?: Array<{ name: string; type: string; base64?: string }>
   ): Promise<ChatResponse> {
@@ -241,7 +296,7 @@ export class AiService {
         apiKey: orKey,
       });
 
-      const messages: any[] = [];
+      const messages: OpenRouterMessage[] = [];
 
       // System instruction
       messages.push({
@@ -258,7 +313,7 @@ export class AiService {
       });
 
       // New prompt with optional files/images
-      const contentParts: any[] = [{ type: 'text', text: userMessage }];
+      const contentParts: OpenRouterMessagePart[] = [{ type: 'text', text: userMessage }];
       
       if (files && files.length > 0) {
         files.forEach(file => {
@@ -286,7 +341,7 @@ export class AiService {
           description: tool.description,
           parameters: tool.parameters
         }
-      }));
+      })) as unknown as OpenAI.Chat.ChatCompletionTool[];
 
       let loopCount = 0;
       const maxLoops = 5;
@@ -297,7 +352,7 @@ export class AiService {
 
         const completion = await openai.chat.completions.create({
           model: orModel,
-          messages,
+          messages: messages as unknown as OpenAI.Chat.ChatCompletionMessageParam[],
           tools: orTools
         });
 
@@ -332,12 +387,12 @@ export class AiService {
         });
 
         for (const tc of toolCalls) {
-          const toolCall = tc as any;
+          const toolCall = tc as OpenRouterToolCall;
           const { name } = toolCall.function;
-          let args: any;
+          let args: Record<string, unknown>;
           try {
             args = JSON.parse(toolCall.function.arguments);
-          } catch (e) {
+          } catch {
             args = {};
           }
 
@@ -347,15 +402,16 @@ export class AiService {
             content: `Arguments: ${JSON.stringify(args, null, 2)}`
           });
 
-          let result: any;
+          let result: unknown;
           let screenshot: string | undefined;
 
           try {
             const toolResult = await ToolRegistry.executeTool(name, args);
             result = toolResult.output;
             screenshot = toolResult.screenshot;
-          } catch (toolErr: any) {
-            result = { error: `Tool execution failed: ${toolErr.message}` };
+          } catch (toolErr) {
+            const errorMessage = toolErr instanceof Error ? toolErr.message : String(toolErr);
+            result = { error: `Tool execution failed: ${errorMessage}` };
           }
 
           steps.push({
@@ -380,11 +436,12 @@ export class AiService {
         response: finalAnswer || "Processing complete.",
         steps
       };
-    } catch (error: any) {
-      console.error('OpenRouter execution error:', error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('OpenRouter execution error:', errorMessage);
       return {
         success: false,
-        response: `Both Gemini and OpenRouter fallback failed. Error detail: ${error.message}`,
+        response: `Both Gemini and OpenRouter fallback failed. Error detail: ${errorMessage}`,
         steps
       };
     }

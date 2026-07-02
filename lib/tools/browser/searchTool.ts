@@ -12,8 +12,9 @@ export const searchTool: AgentTool = {
     },
     required: ['query']
   },
-  execute: async (args: { query: string }) => {
+  execute: async (args: Record<string, unknown>) => {
+    const { query } = args as { query: string };
     const service = new BrowserService();
-    return await service.searchDuckDuckGo(args.query);
+    return await service.searchDuckDuckGo(query);
   }
 };

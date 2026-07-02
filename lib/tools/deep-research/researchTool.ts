@@ -12,12 +12,13 @@ export const researchTool: AgentTool = {
     },
     required: ['topic']
   },
-  execute: async (args: { topic: string }) => {
+  execute: async (args: Record<string, unknown>) => {
+    const { topic } = args as { topic: string };
     const browserService = new BrowserService();
     try {
-      const searchResults = await browserService.searchDuckDuckGo(args.topic);
+      const searchResults = await browserService.searchDuckDuckGo(topic);
       if (searchResults.length === 0) {
-        return { message: `No search results found for: "${args.topic}"` };
+        return { message: `No search results found for: "${topic}"` };
       }
 
       const pagesToScrape = searchResults.slice(0, 2);
@@ -33,12 +34,13 @@ ${scrapeRes.textContent.slice(0, 3000)}
       }
 
       return {
-        topic: args.topic,
+        topic: topic,
         sourcesAnalyzed: pagesToScrape.map(p => ({ title: p.title, url: p.url })),
         compiledData: contents.join('\n')
       };
-    } catch (err: any) {
-      return { error: `Deep research tool run failed: ${err.message}` };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      return { error: `Deep research tool run failed: ${errorMessage}` };
     }
   }
 };

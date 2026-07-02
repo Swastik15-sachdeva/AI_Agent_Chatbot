@@ -1,13 +1,13 @@
 "use server";
 
-import { AiService, ChatResponse } from '@/services/ai/aiService';
+import { AiService, ChatResponse, ChatHistoryMessage } from '@/services/ai/aiService';
 
 /**
  * Server action to process chat queries using the AiService agent orchestrator.
  */
 export async function handleChatRequest(
   userMessage: string,
-  history: any[],
+  history: ChatHistoryMessage[],
   isThinkingEnabled: boolean,
   selectedModel: 'gemini' | 'openrouter',
   files?: Array<{ name: string; type: string; base64?: string }>
@@ -15,16 +15,17 @@ export async function handleChatRequest(
   try {
     const aiService = new AiService();
     return await aiService.generateText(userMessage, history, isThinkingEnabled, selectedModel, files);
-  } catch (error: any) {
-    console.error('Server Action Chat Request Error:', error.message);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Server Action Chat Request Error:', errorMessage);
     return {
       success: false,
-      response: `An error occurred on the server while processing your request: ${error.message}`,
+      response: `An error occurred on the server while processing your request: ${errorMessage}`,
       steps: [
         {
           type: 'error',
           title: 'Server Error',
-          content: error.message
+          content: errorMessage
         }
       ]
     };

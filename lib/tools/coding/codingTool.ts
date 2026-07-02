@@ -32,13 +32,14 @@ export const codingTool: AgentTool = {
     },
     required: ['action', 'language', 'code']
   },
-  execute: async (args: {
-    action: 'generate' | 'debug' | 'explain' | 'refactor' | 'draft_project';
-    language: string;
-    code: string;
-    explanation?: string;
-    files?: Array<{ path: string; content: string }>;
-  }) => {
+  execute: async (args: Record<string, unknown>) => {
+    const { action, language, code, explanation, files } = args as {
+      action: 'generate' | 'debug' | 'explain' | 'refactor' | 'draft_project';
+      language: string;
+      code: string;
+      explanation?: string;
+      files?: Array<{ path: string; content: string }>;
+    };
     const sandboxDir = path.resolve(process.cwd(), 'sandbox');
     
     // Create sandbox directory if it doesn't exist
@@ -46,12 +47,12 @@ export const codingTool: AgentTool = {
       fs.mkdirSync(sandboxDir, { recursive: true });
     }
 
-    let fileResults: string[] = [];
+    const fileResults: string[] = [];
 
     try {
       // If files are provided for multi-file project drafting
-      if (args.files && args.files.length > 0) {
-        for (const file of args.files) {
+      if (files && files.length > 0) {
+        for (const file of files) {
           const filePath = path.join(sandboxDir, file.path);
           const fileDir = path.dirname(filePath);
           
@@ -62,27 +63,28 @@ export const codingTool: AgentTool = {
           fs.writeFileSync(filePath, file.content, 'utf8');
           fileResults.push(file.path);
         }
-      } else if (args.action === 'generate' && args.code) {
+      } else if (action === 'generate' && code) {
         // For single file generation, create a default file based on language extension
-        const ext = getExtensionByLanguage(args.language);
+        const ext = getExtensionByLanguage(language);
         const filename = `generated_code${ext}`;
         const filePath = path.join(sandboxDir, filename);
-        fs.writeFileSync(filePath, args.code, 'utf8');
+        fs.writeFileSync(filePath, code, 'utf8');
         fileResults.push(filename);
       }
-    } catch (err: any) {
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
       return {
         success: false,
-        error: `Failed to write code to disk: ${err.message}`
+        error: `Failed to write code to disk: ${errorMessage}`
       };
     }
 
     return {
       success: true,
-      action: args.action,
-      language: args.language,
-      code: args.code,
-      explanation: args.explanation || '',
+      action: action,
+      language: language,
+      code: code,
+      explanation: explanation || '',
       savedFiles: fileResults,
       outputPath: fileResults.length > 0 ? 'sandbox/' : null
     };

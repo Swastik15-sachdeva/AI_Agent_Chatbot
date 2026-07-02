@@ -3,18 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/sidebar/Sidebar';
 import ChatWindow from '@/components/chat/ChatWindow';
-import ClaudeChatInput, { AttachedFile } from '@/components/ui/claude-style-chat-input';
+import ClaudeChatInput, { AttachedFile, PastedSnippet } from '@/components/ui/claude-style-chat-input';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { handleChatRequest } from '@/app/actions';
 import { Loader2, PanelLeftOpen } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
+import { AgentStep } from '@/services/ai/aiService';
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  steps?: any[];
+  steps?: AgentStep[];
 }
 
 interface ChatSession {
@@ -53,6 +55,7 @@ export default function HomePage() {
     if (!isAuthenticated || !user) return;
 
     async function loadSessionsFromSupabase() {
+      if (!user) return;
       if (!isSupabaseConfigured || !supabase) {
         loadFromLocalStorage();
         return;
@@ -117,8 +120,9 @@ export default function HomePage() {
         setSessions(assembledSessions);
         setActiveSessionId(assembledSessions[0].id);
 
-      } catch (err: any) {
-        console.warn('Failed to load from Supabase (falling back to localStorage):', err.message);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.warn('Failed to load from Supabase (falling back to localStorage):', errorMessage);
         loadFromLocalStorage();
       }
     }
@@ -178,8 +182,9 @@ export default function HomePage() {
         await supabase
           .from('chat_sessions')
           .insert({ id: newId, title: 'New Conversation', user_id: user.id });
-      } catch (err: any) {
-        console.warn('Failed to sync new session to Supabase:', err.message);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.warn('Failed to sync new session to Supabase:', errorMessage);
       }
     }
   };
@@ -191,7 +196,7 @@ export default function HomePage() {
   const handleSendMessage = async (data: {
     message: string;
     files: AttachedFile[];
-    pastedContent: any[];
+    pastedContent: PastedSnippet[];
     isThinkingEnabled: boolean;
     selectedModel: 'gemini' | 'openrouter';
   }) => {
@@ -245,8 +250,9 @@ export default function HomePage() {
             content: data.message,
             steps: []
           });
-      } catch (err: any) {
-        console.warn('Failed to sync user message to Supabase:', err.message);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.warn('Failed to sync user message to Supabase:', errorMessage);
       }
     }
 
@@ -293,17 +299,19 @@ export default function HomePage() {
               content: response.response,
               steps: response.steps || []
             });
-        } catch (err: any) {
-          console.warn('Failed to sync assistant response to Supabase:', err.message);
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          console.warn('Failed to sync assistant response to Supabase:', errorMessage);
         }
       }
-    } catch (err: any) {
-      console.error('Failed to get chat response:', err);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Failed to get chat response:', errorMessage);
       // Append error message to chat window
       const errorMsg: Message = {
         id: Math.random().toString(36).substring(2, 9),
         role: 'assistant',
-        content: `Error: Failed to process request. Details: ${err.message}`
+        content: `Error: Failed to process request. Details: ${errorMessage}`
       };
       
       const finalSessions = sessions.map(s => {

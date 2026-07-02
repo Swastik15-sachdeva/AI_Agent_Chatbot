@@ -48,8 +48,9 @@ export class BrowserService {
       });
 
       return results.filter(r => r.title && r.url);
-    } catch (error: any) {
-      console.error('Error during DuckDuckGo direct search:', error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error during DuckDuckGo direct search:', errorMessage);
       return [];
     } finally {
       await browser.close();
@@ -93,13 +94,14 @@ export class BrowserService {
               return { ...r, url: decoded };
             }
           }
-        } catch (e) {
+        } catch {
           // Ignore error and return original URL
         }
         return r;
       });
-    } catch (error: any) {
-      console.error('Error during Bing fallback search:', error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error during Bing fallback search:', errorMessage);
       return [];
     } finally {
       await browser.close();
@@ -149,12 +151,13 @@ export class BrowserService {
         textContent: truncatedText,
         screenshotBase64
       };
-    } catch (error: any) {
-      console.error(`Error scraping URL ${url}:`, error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error scraping URL ${url}:`, errorMessage);
       return {
         url,
         title: 'Error Loading Page',
-        textContent: `Failed to load the website: ${error.message}`,
+        textContent: `Failed to load the website: ${errorMessage}`,
         screenshotBase64: ''
       };
     } finally {

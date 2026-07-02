@@ -71,6 +71,7 @@ const FilePreviewCard: React.FC<FilePreviewCardProps> = ({ file, onRemove }) => 
         <div className={`relative group shrink-0 w-24 h-24 rounded-xl overflow-hidden border border-bg-300 bg-bg-200 animate-fade-in transition-all hover:border-text-400`}>
             {isImage ? (
                 <div className="w-full h-full relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={file.preview!} alt={file.file.name} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
                 </div>
@@ -151,11 +152,17 @@ const PastedContentCard: React.FC<PastedContentCardProps> = ({ content, onRemove
 
 
 // 4. Main Chat Input Component
+export interface PastedSnippet {
+    id: string;
+    content: string;
+    timestamp: Date;
+}
+
 interface ClaudeChatInputProps {
     onSendMessage: (data: {
         message: string;
         files: AttachedFile[];
-        pastedContent: any[];
+        pastedContent: PastedSnippet[];
         isThinkingEnabled: boolean;
         selectedModel: 'gemini' | 'openrouter';
     }) => void;
@@ -168,7 +175,7 @@ export const ClaudeChatInput: React.FC<ClaudeChatInputProps> = ({ onSendMessage 
 
     const [message, setMessage] = useState("");
     const [files, setFiles] = useState<AttachedFile[]>([]);
-    const [pastedContent, setPastedContent] = useState<any[]>([]);
+    const [pastedContent, setPastedContent] = useState<PastedSnippet[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
     const [selectedModel, setSelectedModel] = useState<'gemini' | 'openrouter'>('gemini');

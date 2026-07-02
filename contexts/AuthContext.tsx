@@ -1,12 +1,18 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+
+export interface AuthUser {
+  id: string;
+  email?: string;
+  name?: string;
+}
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: any | null;
+  user: AuthUser | null;
   login: (email?: string, password?: string) => Promise<void>;
   signUp: (email: string, password?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -18,7 +24,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [redirectPath, setRedirectPathState] = useState<string | null>(null);
   const router = useRouter();
 
@@ -28,12 +34,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isSupabaseConfigured && supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         setIsAuthenticated(!!session);
-        setUser(session?.user ?? null);
+        setUser(session?.user ? {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0]
+        } : null);
       });
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         setIsAuthenticated(!!session);
-        setUser(session?.user ?? null);
+        setUser(session?.user ? {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0]
+        } : null);
       });
 
       return () => {
@@ -43,14 +57,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 2. Otherwise, fallback to localStorage mock auth
       const authState = localStorage.getItem("auth_authenticated");
       if (authState === "true") {
-        setIsAuthenticated(true);
-        setUser({ email: "swastik@example.com", name: "SWASTIK" });
+        Promise.resolve().then(() => {
+          setIsAuthenticated(true);
+          setUser({ id: "mock-id", email: "swastik@example.com", name: "SWASTIK" });
+        });
       }
     }
 
     const path = sessionStorage.getItem("auth_redirect_path");
     if (path) {
-      setRedirectPathState(path);
+      Promise.resolve().then(() => {
+        setRedirectPathState(path);
+      });
     }
   }, []);
 
@@ -61,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       // Fallback: mock login
       setIsAuthenticated(true);
-      setUser({ email: email || "swastik@example.com", name: "SWASTIK" });
+      setUser({ id: "mock-id", email: email || "swastik@example.com", name: "SWASTIK" });
       localStorage.setItem("auth_authenticated", "true");
     }
   };
@@ -73,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       // Fallback: mock signup
       setIsAuthenticated(true);
-      setUser({ email, name: "SWASTIK" });
+      setUser({ id: "mock-id", email, name: "SWASTIK" });
       localStorage.setItem("auth_authenticated", "true");
     }
   };
