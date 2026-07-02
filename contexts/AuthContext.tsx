@@ -16,6 +16,7 @@ interface AuthContextType {
   login: (email?: string, password?: string) => Promise<void>;
   signUp: (email: string, password?: string) => Promise<void>;
   logout: () => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   redirectPath: string | null;
   setRedirectPath: (path: string | null) => void;
 }
@@ -108,6 +109,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     router.push("/auth");
   };
 
+  const loginWithGoogle = async () => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`
+        }
+      });
+      if (error) throw error;
+    } else {
+      // Fallback: mock login with Google
+      setIsAuthenticated(true);
+      setUser({ id: "mock-google-id", email: "google-user@example.com", name: "Google User" });
+      localStorage.setItem("auth_authenticated", "true");
+    }
+  };
+
   const setRedirectPath = (path: string | null) => {
     setRedirectPathState(path);
     if (path) {
@@ -125,6 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         signUp,
         logout,
+        loginWithGoogle,
         redirectPath,
         setRedirectPath,
       }}
