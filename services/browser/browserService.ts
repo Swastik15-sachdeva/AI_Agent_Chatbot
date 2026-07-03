@@ -34,6 +34,7 @@ export class BrowserService {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     });
     const page = await context.newPage();
+    let shouldKeepOpen = false;
     try {
       const searchUrl = `https://search.yahoo.com/search?p=${encodeURIComponent(query)}`;
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -56,10 +57,9 @@ export class BrowserService {
       const filtered = results.filter(r => r.title && r.url);
 
       if (!isHeadless) {
-        console.log('Browser is running in headed mode. Waiting for user to close the browser...');
-        await new Promise<void>((resolve) => {
-          page.on('close', () => resolve());
-          browser.on('disconnected', () => resolve());
+        shouldKeepOpen = true;
+        browser.on('disconnected', () => {
+          browser.close().catch(() => {});
         });
       }
 
@@ -69,7 +69,9 @@ export class BrowserService {
       console.error('Error during Yahoo direct search:', errorMessage);
       return [];
     } finally {
-      await browser.close();
+      if (!shouldKeepOpen) {
+        await browser.close().catch(() => {});
+      }
     }
   }
 
@@ -79,6 +81,7 @@ export class BrowserService {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     });
     const page = await context.newPage();
+    let shouldKeepOpen = false;
     try {
       const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -117,10 +120,9 @@ export class BrowserService {
       });
 
       if (!isHeadless) {
-        console.log('Browser is running in headed mode. Waiting for user to close the browser...');
-        await new Promise<void>((resolve) => {
-          page.on('close', () => resolve());
-          browser.on('disconnected', () => resolve());
+        shouldKeepOpen = true;
+        browser.on('disconnected', () => {
+          browser.close().catch(() => {});
         });
       }
 
@@ -130,7 +132,9 @@ export class BrowserService {
       console.error('Error during Bing fallback search:', errorMessage);
       return [];
     } finally {
-      await browser.close();
+      if (!shouldKeepOpen) {
+        await browser.close().catch(() => {});
+      }
     }
   }
 
@@ -143,6 +147,7 @@ export class BrowserService {
     
     // Set a viewport size that is standard
     await page.setViewportSize({ width: 1280, height: 800 });
+    let shouldKeepOpen = false;
 
     try {
       await page.goto(url, { waitUntil: 'load', timeout: 25000 });
@@ -179,10 +184,9 @@ export class BrowserService {
       };
 
       if (!isHeadless) {
-        console.log('Browser is running in headed mode. Waiting for user to close the browser...');
-        await new Promise<void>((resolve) => {
-          page.on('close', () => resolve());
-          browser.on('disconnected', () => resolve());
+        shouldKeepOpen = true;
+        browser.on('disconnected', () => {
+          browser.close().catch(() => {});
         });
       }
 
@@ -198,16 +202,17 @@ export class BrowserService {
       };
 
       if (!isHeadless) {
-        console.log('Browser is running in headed mode. Waiting for user to close the browser...');
-        await new Promise<void>((resolve) => {
-          page.on('close', () => resolve());
-          browser.on('disconnected', () => resolve());
+        shouldKeepOpen = true;
+        browser.on('disconnected', () => {
+          browser.close().catch(() => {});
         });
       }
 
       return errorResult;
     } finally {
-      await browser.close();
+      if (!shouldKeepOpen) {
+        await browser.close().catch(() => {});
+      }
     }
   }
 }
