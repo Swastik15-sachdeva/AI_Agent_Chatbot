@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, User, ChevronDown, ChevronRight, Terminal, Eye, EyeOff, Search, Play, AlertCircle } from 'lucide-react';
+import { Bot, User, ChevronDown, ChevronRight, Terminal, Eye, EyeOff, Search, Play, AlertCircle, Loader2 } from 'lucide-react';
 import { AgentStep } from '@/services/ai/aiService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -223,21 +223,7 @@ export default function ChatWindow({ messages, isLoading, sessionId }: ChatWindo
 
           {/* Loading Indicator */}
           {isLoading && (
-            <div className="flex gap-4 items-start justify-start animate-fade-in">
-              <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-white shrink-0 shadow-sm mt-1 animate-bounce">
-                <Bot className="w-4 h-4" />
-              </div>
-              <div className="flex flex-col space-y-2 max-w-[80%]">
-                <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700/50 rounded-2xl rounded-bl-none px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex items-center gap-3">
-                  <div className="flex gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
-                  <span className="text-xs font-medium text-zinc-500">Agent is thinking and processing tools...</span>
-                </div>
-              </div>
-            </div>
+            <ThinkingProcessLoader />
           )}
         </div>
       )}
@@ -345,6 +331,89 @@ function AgentStepsTimeline({ steps }: { steps: AgentStep[] }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Custom glassmorphism loading step-by-step display.
+ */
+function ThinkingProcessLoader() {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      setSeconds((Date.now() - startTime) / 1000);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isStep1Active = seconds < 1.5;
+  const isStep2Active = seconds >= 1.5;
+
+  return (
+    <div className="flex gap-4 items-start justify-start animate-fade-in w-full max-w-xl">
+      <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-white shrink-0 shadow-sm mt-1 animate-bounce">
+        <Bot className="w-4 h-4" />
+      </div>
+
+      <div className="relative overflow-hidden rounded-2xl border border-zinc-200/10 dark:border-zinc-800 bg-[#1E1E1E]/95 dark:bg-zinc-950/85 backdrop-blur-md p-5 shadow-[0_0_25px_rgba(249,115,22,0.12)] w-full text-zinc-300 font-sans">
+        <div className="flex items-center gap-2 mb-4 text-zinc-100 font-semibold text-sm tracking-wide">
+          <span className="text-base">🧠</span>
+          <span>Step-by-Step Thinking Process:</span>
+        </div>
+
+        <div className="space-y-3.5 text-xs font-normal">
+          {/* Step 1: Analyzing Request */}
+          <div className="flex items-center gap-3">
+            {isStep1Active ? (
+              <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                <Loader2 className="w-3.5 h-3.5 text-orange-400 animate-spin" />
+              </span>
+            ) : (
+              <span className="w-4 h-4 rounded-full bg-green-500/15 text-green-400 flex items-center justify-center text-[10px] font-bold shrink-0">✓</span>
+            )}
+            <span className={isStep1Active ? "text-zinc-100 font-medium" : "text-zinc-400"}>
+              Analyzing Request...
+            </span>
+            {isStep1Active && (
+              <span className="relative flex h-2 w-2 ml-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+              </span>
+            )}
+          </div>
+
+          {/* Step 2: Processing Query */}
+          <div className="flex items-center gap-3">
+            {!isStep2Active ? (
+              <span className="w-4 h-4 rounded border border-zinc-700 bg-transparent shrink-0" />
+            ) : (
+              <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                <Loader2 className="w-3.5 h-3.5 text-orange-400 animate-spin" />
+              </span>
+            )}
+            <span className={isStep2Active ? "text-zinc-100 font-medium" : "text-zinc-400"}>
+              Processing Query {isStep2Active ? `(${(seconds - 1.5).toFixed(1)}s)...` : ''}
+            </span>
+            {isStep2Active && (
+              <span className="relative flex h-2 w-2 ml-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+              </span>
+            )}
+          </div>
+
+          {/* Step 3: Synthesizing Solution */}
+          <div className="flex items-center gap-3">
+            <span className="w-4 h-4 rounded border border-zinc-700 bg-transparent shrink-0" />
+            <span className="text-zinc-500">
+              Synthesizing Solution...
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
