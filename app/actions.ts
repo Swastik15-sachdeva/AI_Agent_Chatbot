@@ -12,6 +12,11 @@ async function logChatLocally(data: {
   selectedModel: 'gemini' | 'openrouter';
   files?: Array<{ name: string; type: string; sizeBytes: number }>;
   response: ChatResponse;
+  forcedFeatures?: {
+    browserSearch?: boolean;
+    coding?: boolean;
+    deepResearch?: boolean;
+  };
 }) {
   try {
     const logsDir = path.join(process.cwd(), 'logs');
@@ -37,7 +42,12 @@ export async function handleChatRequest(
   history: ChatHistoryMessage[],
   isThinkingEnabled: boolean,
   selectedModel: 'gemini' | 'openrouter',
-  files?: Array<{ name: string; type: string; base64?: string }>
+  files?: Array<{ name: string; type: string; base64?: string }>,
+  forcedFeatures?: {
+    browserSearch?: boolean;
+    coding?: boolean;
+    deepResearch?: boolean;
+  }
 ): Promise<ChatResponse> {
   const timestamp = new Date().toISOString();
   const filesSummary = files?.map(f => ({
@@ -48,7 +58,7 @@ export async function handleChatRequest(
 
   try {
     const aiService = new AiService();
-    const result = await aiService.generateText(userMessage, history, isThinkingEnabled, selectedModel, files);
+    const result = await aiService.generateText(userMessage, history, isThinkingEnabled, selectedModel, files, forcedFeatures);
 
     // Log the request and response locally
     // Note: Not awaiting to avoid adding delay to the response return
@@ -59,7 +69,8 @@ export async function handleChatRequest(
       isThinkingEnabled,
       selectedModel,
       files: filesSummary,
-      response: result
+      response: result,
+      forcedFeatures
     });
 
     return result;

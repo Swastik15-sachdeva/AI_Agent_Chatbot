@@ -199,6 +199,11 @@ export default function HomePage() {
     pastedContent: PastedSnippet[];
     isThinkingEnabled: boolean;
     selectedModel: 'gemini' | 'openrouter';
+    forcedFeatures?: {
+      browserSearch?: boolean;
+      coding?: boolean;
+      deepResearch?: boolean;
+    };
   }) => {
     if (!activeSessionId) return;
 
@@ -263,7 +268,8 @@ export default function HomePage() {
         currentSession.messages, // pass current history
         data.isThinkingEnabled,
         data.selectedModel,
-        data.files.map(f => ({ name: f.file.name, type: f.type, base64: f.base64 }))
+        data.files.map(f => ({ name: f.file.name, type: f.type, base64: f.base64 })),
+        data.forcedFeatures
       );
 
       // Create assistant response message object

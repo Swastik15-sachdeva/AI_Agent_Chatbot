@@ -84,20 +84,25 @@ export class AiService {
     history: ChatHistoryMessage[] = [],
     isThinkingEnabled: boolean = false,
     selectedModel: 'gemini' | 'openrouter' = 'gemini',
-    files?: Array<{ name: string; type: string; base64?: string }>
+    files?: Array<{ name: string; type: string; base64?: string }>,
+    forcedFeatures?: {
+      browserSearch?: boolean;
+      coding?: boolean;
+      deepResearch?: boolean;
+    }
   ): Promise<ChatResponse> {
     const steps: AgentStep[] = [];
     const geminiKey = process.env.GEMINI_API_KEY;
 
     // Check if user selected OpenRouter directly
     if (selectedModel === 'openrouter') {
-      return this.runOpenRouterFallback(userMessage, history, steps, files);
+      return this.runOpenRouterFallback(userMessage, history, steps, files, forcedFeatures);
     }
 
     // Check if Gemini key is available
     if (!geminiKey || geminiKey.includes('your_gemini')) {
       console.warn('Gemini API key missing. Falling back directly to OpenRouter.');
-      return this.runOpenRouterFallback(userMessage, history, steps, files);
+      return this.runOpenRouterFallback(userMessage, history, steps, files, forcedFeatures);
     }
 
     try {
@@ -108,10 +113,22 @@ export class AiService {
       // Roles: 'user', 'model', 'tool'
       const chatHistory: GeminiContent[] = [];
       
-      // Add system instruction depending on thinking mode
-      const systemInstruction = isThinkingEnabled
+      // Add system instruction depending on thinking mode and forced features
+      let systemInstruction = isThinkingEnabled
         ? `${getBaseSystemInstruction()} Think deeply and step-by-step to formulate your thoughts and execute your plan.`
         : getBaseSystemInstruction();
+
+      if (forcedFeatures) {
+        if (forcedFeatures.browserSearch) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST use the web_search tool to answer the user's query. Do not rely solely on your internal knowledge.";
+        }
+        if (forcedFeatures.deepResearch) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST use the deep_research tool to answer the user's query. Provide a comprehensive, in-depth research report.";
+        }
+        if (forcedFeatures.coding) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST prioritize writing high-quality code, logic, or step-by-step algorithms. Format your code blocks cleanly.";
+        }
+      }
 
       // Convert history (keeping only the last 10 messages to save tokens)
       const recentHistory = history.slice(-10);
@@ -292,7 +309,7 @@ export class AiService {
         title: 'Gemini Error',
         content: `Error: ${errorMessage}. Falling back to OpenRouter...`
       });
-      return this.runOpenRouterFallback(userMessage, history, steps, files);
+      return this.runOpenRouterFallback(userMessage, history, steps, files, forcedFeatures);
     }
   }
 
@@ -303,7 +320,12 @@ export class AiService {
     userMessage: string,
     history: ChatHistoryMessage[],
     steps: AgentStep[],
-    files?: Array<{ name: string; type: string; base64?: string }>
+    files?: Array<{ name: string; type: string; base64?: string }>,
+    forcedFeatures?: {
+      browserSearch?: boolean;
+      coding?: boolean;
+      deepResearch?: boolean;
+    }
   ): Promise<ChatResponse> {
     const orKey = process.env.OPENROUTER_API_KEY;
 
@@ -332,9 +354,22 @@ export class AiService {
       const messages: OpenRouterMessage[] = [];
 
       // System instruction
+      let systemInstruction = getBaseSystemInstruction();
+      if (forcedFeatures) {
+        if (forcedFeatures.browserSearch) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST use the web_search tool to answer the user's query. Do not rely solely on your internal knowledge.";
+        }
+        if (forcedFeatures.deepResearch) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST use the deep_research tool to answer the user's query. Provide a comprehensive, in-depth research report.";
+        }
+        if (forcedFeatures.coding) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST prioritize writing high-quality code, logic, or step-by-step algorithms. Format your code blocks cleanly.";
+        }
+      }
+
       messages.push({
         role: 'system',
-        content: getBaseSystemInstruction()
+        content: systemInstruction
       });
 
       // User history

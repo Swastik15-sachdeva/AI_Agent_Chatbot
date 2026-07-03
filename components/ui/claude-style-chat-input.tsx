@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Plus, ChevronDown, ArrowUp, X, FileText, Loader2, Check, Archive, Mic, MicOff } from "lucide-react";
+import { Plus, ChevronDown, ArrowUp, X, FileText, Loader2, Check, Archive, Mic, MicOff, Globe, Code, Search, FileUp } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -190,6 +190,11 @@ interface ClaudeChatInputProps {
         pastedContent: PastedSnippet[];
         isThinkingEnabled: boolean;
         selectedModel: 'gemini' | 'openrouter';
+        forcedFeatures?: {
+            browserSearch?: boolean;
+            coding?: boolean;
+            deepResearch?: boolean;
+        };
     }) => void;
 }
 
@@ -205,10 +210,16 @@ export const ClaudeChatInput: React.FC<ClaudeChatInputProps> = ({ onSendMessage 
     const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
     const [selectedModel, setSelectedModel] = useState<'gemini' | 'openrouter'>('gemini');
     const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+    const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
+
+    const [isBrowserSearchForced, setIsBrowserSearchForced] = useState(false);
+    const [isCodingForced, setIsCodingForced] = useState(false);
+    const [isDeepResearchForced, setIsDeepResearchForced] = useState(false);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const modelMenuRef = useRef<HTMLDivElement>(null);
+    const plusMenuRef = useRef<HTMLDivElement>(null);
 
     const [isListening, setIsListening] = useState(false);
     const [recognition, setRecognition] = useState<ISpeechRecognition | null>(null);
@@ -271,11 +282,14 @@ export const ClaudeChatInput: React.FC<ClaudeChatInputProps> = ({ onSendMessage 
         }
     };
 
-    // Click outside listener for model menu dropdown
+    // Click outside listener for dropdowns
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (modelMenuRef.current && !modelMenuRef.current.contains(event.target as Node)) {
                 setIsModelMenuOpen(false);
+            }
+            if (plusMenuRef.current && !plusMenuRef.current.contains(event.target as Node)) {
+                setIsPlusMenuOpen(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -387,11 +401,19 @@ export const ClaudeChatInput: React.FC<ClaudeChatInputProps> = ({ onSendMessage 
             files,
             pastedContent,
             isThinkingEnabled,
-            selectedModel
+            selectedModel,
+            forcedFeatures: {
+                browserSearch: isBrowserSearchForced,
+                coding: isCodingForced,
+                deepResearch: isDeepResearchForced
+            }
         });
         setMessage("");
         setFiles([]);
         setPastedContent([]);
+        setIsBrowserSearchForced(false);
+        setIsCodingForced(false);
+        setIsDeepResearchForced(false);
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
     };
 
@@ -459,18 +481,148 @@ export const ClaudeChatInput: React.FC<ClaudeChatInputProps> = ({ onSendMessage 
                         </div>
                     </div>
 
+                    {/* 2.5. Active Feature Badges */}
+                    {(isBrowserSearchForced || isCodingForced || isDeepResearchForced) && (
+                        <div className="flex flex-wrap gap-2 px-3 pb-1.5 select-none">
+                            {isBrowserSearchForced && (
+                                <div className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-full bg-accent/10 text-accent border border-accent/20">
+                                    <Globe className="w-3.5 h-3.5 animate-pulse" />
+                                    <span>Browser Search Forced</span>
+                                    <button
+                                        onClick={() => setIsBrowserSearchForced(false)}
+                                        className="hover:text-accent-hover focus:outline-none cursor-pointer ml-1"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            )}
+                            {isCodingForced && (
+                                <div className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-full bg-accent/10 text-accent border border-accent/20">
+                                    <Code className="w-3.5 h-3.5" />
+                                    <span>Coding Mode Forced</span>
+                                    <button
+                                        onClick={() => setIsCodingForced(false)}
+                                        className="hover:text-accent-hover focus:outline-none cursor-pointer ml-1"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            )}
+                            {isDeepResearchForced && (
+                                <div className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-full bg-accent/10 text-accent border border-accent/20">
+                                    <Search className="w-3.5 h-3.5 animate-pulse" />
+                                    <span>Deep Research Forced</span>
+                                    <button
+                                        onClick={() => setIsDeepResearchForced(false)}
+                                        className="hover:text-accent-hover focus:outline-none cursor-pointer ml-1"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* 3. Action Bar */}
                     <div className="flex gap-2 w-full items-center">
                         {/* Left Tools */}
                         <div className="relative flex-1 flex items-center shrink min-w-0 gap-1">
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="inline-flex items-center justify-center relative shrink-0 transition-colors duration-200 h-8 w-8 rounded-lg active:scale-95 text-text-400 hover:text-text-200 hover:bg-bg-200"
-                                type="button"
-                                aria-label="Toggle menu"
-                            >
-                                <Icons.Plus className="w-5 h-5" />
-                            </button>
+                            {/* Plus Menu Button with attach and feature options */}
+                            <div className="relative" ref={plusMenuRef}>
+                                <button
+                                    onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
+                                    className={`inline-flex items-center justify-center relative shrink-0 transition-colors duration-200 h-8 w-8 rounded-lg active:scale-95
+                                        ${isPlusMenuOpen ? 'text-accent bg-accent/10' : 'text-text-400 hover:text-text-200 hover:bg-bg-200'}
+                                    `}
+                                    type="button"
+                                    aria-label="Toggle menu"
+                                >
+                                    <Icons.Plus className={`w-5 h-5 transition-transform duration-200 ${isPlusMenuOpen ? 'rotate-45' : ''}`} />
+                                </button>
+                                
+                                {isPlusMenuOpen && (
+                                    <div className="absolute left-0 bottom-full mb-2 w-60 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg z-50 p-1.5 space-y-0.5 animate-fade-in text-text-300">
+                                        <div className="px-2.5 py-1.5 text-[10px] font-bold text-text-500 uppercase tracking-wider border-b border-bg-300 dark:border-zinc-850 mb-1">
+                                            Attach & Features
+                                        </div>
+                                        
+                                        {/* 1. Upload File */}
+                                        <button
+                                            onClick={() => {
+                                                fileInputRef.current?.click();
+                                                setIsPlusMenuOpen(false);
+                                            }}
+                                            className="w-full flex items-center gap-2.5 px-2.5 py-2 text-xs rounded-lg hover:bg-bg-200 dark:hover:bg-zinc-800 text-text-300 hover:text-text-100 text-left cursor-pointer"
+                                            type="button"
+                                        >
+                                            <FileUp className="w-4 h-4 text-text-400" />
+                                            <span>Upload files & photos</span>
+                                        </button>
+                                        
+                                        <div className="h-px bg-bg-300 dark:bg-zinc-800 my-1" />
+
+                                        {/* 2. Web Search Toggle */}
+                                        <button
+                                            onClick={() => {
+                                                setIsBrowserSearchForced(!isBrowserSearchForced);
+                                                setIsPlusMenuOpen(false);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-lg transition-colors text-left cursor-pointer
+                                                ${isBrowserSearchForced
+                                                    ? 'bg-accent/10 text-accent font-medium'
+                                                    : 'hover:bg-bg-200 text-text-300 hover:text-text-100 dark:hover:bg-zinc-800'}
+                                            `}
+                                            type="button"
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <Globe className="w-4 h-4" />
+                                                <span>Browser Search</span>
+                                            </div>
+                                            {isBrowserSearchForced && <Check className="w-3.5 h-3.5" />}
+                                        </button>
+
+                                        {/* 3. Coding Toggle */}
+                                        <button
+                                            onClick={() => {
+                                                setIsCodingForced(!isCodingForced);
+                                                setIsPlusMenuOpen(false);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-lg transition-colors text-left cursor-pointer
+                                                ${isCodingForced
+                                                    ? 'bg-accent/10 text-accent font-medium'
+                                                    : 'hover:bg-bg-200 text-text-300 hover:text-text-100 dark:hover:bg-zinc-800'}
+                                            `}
+                                            type="button"
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <Code className="w-4 h-4" />
+                                                <span>Coding Mode</span>
+                                            </div>
+                                            {isCodingForced && <Check className="w-3.5 h-3.5" />}
+                                        </button>
+
+                                        {/* 4. Deep Research Toggle */}
+                                        <button
+                                            onClick={() => {
+                                                setIsDeepResearchForced(!isDeepResearchForced);
+                                                setIsPlusMenuOpen(false);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-2.5 py-2 text-xs rounded-lg transition-colors text-left cursor-pointer
+                                                ${isDeepResearchForced
+                                                    ? 'bg-accent/10 text-accent font-medium'
+                                                    : 'hover:bg-bg-200 text-text-300 hover:text-text-100 dark:hover:bg-zinc-800'}
+                                            `}
+                                            type="button"
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <Search className="w-4 h-4" />
+                                                <span>Deep Research</span>
+                                            </div>
+                                            {isDeepResearchForced && <Check className="w-3.5 h-3.5" />}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
 
                             <div className="flex shrink-0! min-w-8">
                                 <button
