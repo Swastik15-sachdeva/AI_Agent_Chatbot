@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { handleChatRequest } from '@/app/actions';
 import { Loader2, PanelLeftOpen } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import ParticleBackground3D from '@/components/ui/particle-background-3d';
 
 import { AgentStep } from '@/services/ai/aiService';
 
@@ -358,6 +359,9 @@ export default function HomePage() {
 
       {/* Main Chat Area Workspace */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+        {/* 3D Particle Background */}
+        <ParticleBackground3D opacity={0.35} />
+
         {/* Ambient Glowing Blobs */}
         <div className="absolute top-[10%] left-[20%] w-[450px] h-[450px] rounded-full bg-purple-600/8 blur-[120px] pointer-events-none z-0 dark:block hidden animate-pulse" style={{ animationDuration: '8s' }} />
         <div className="absolute bottom-[20%] right-[10%] w-[400px] h-[400px] rounded-full bg-[#E2A478]/4 blur-[130px] pointer-events-none z-0 dark:block hidden animate-pulse" style={{ animationDuration: '12s' }} />

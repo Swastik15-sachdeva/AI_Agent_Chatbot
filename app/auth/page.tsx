@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import ParticleBackground3D from "@/components/ui/particle-background-3d";
 
 export default function AuthPage() {
   const { isAuthenticated, login, signUp, loginWithGoogle, redirectPath } = useAuth();
@@ -83,7 +84,9 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-background">
+    <div className="min-h-screen w-full flex bg-background relative overflow-hidden">
+      {/* 3D Particle Background */}
+      <ParticleBackground3D opacity={0.4} />
       {/* Left side - Interactive/Visual section */}
       <div className="hidden lg:flex w-1/2 bg-zinc-900 flex-col justify-between p-12 relative overflow-hidden">
         {/* Abstract background gradient */}
