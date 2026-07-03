@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Bot, User, ChevronDown, ChevronRight, Terminal, Eye, EyeOff, Search, Play, AlertCircle } from 'lucide-react';
 import { AgentStep } from '@/services/ai/aiService';
 import ReactMarkdown from 'react-markdown';
@@ -56,11 +56,30 @@ interface Message {
 interface ChatWindowProps {
   messages: Message[];
   isLoading: boolean;
+  sessionId?: string | null;
 }
 
-export default function ChatWindow({ messages, isLoading }: ChatWindowProps) {
+export default function ChatWindow({ messages, isLoading, sessionId }: ChatWindowProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevSessionIdRef = useRef<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      const isNewSession = prevSessionIdRef.current !== sessionId;
+      prevSessionIdRef.current = sessionId;
+
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: isNewSession ? 'auto' : 'smooth'
+      });
+    }
+  }, [messages, isLoading, sessionId]);
+
   return (
-    <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 overflow-y-auto px-4 md:px-8 py-6 space-y-6 scrollbar-thin">
+    <div
+      ref={scrollContainerRef}
+      className="flex-1 bg-zinc-50 dark:bg-zinc-900 overflow-y-auto px-4 md:px-8 py-6 space-y-6 scrollbar-thin"
+    >
       {messages.length === 0 ? (
         <div className="h-full flex flex-col items-center justify-center text-center p-8 select-none">
           <div className="w-16 h-16 rounded-2xl bg-accent/15 flex items-center justify-center text-accent mb-4 animate-pulse">

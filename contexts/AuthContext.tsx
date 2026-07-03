@@ -55,8 +55,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         subscription.unsubscribe();
       };
     } else {
-      // 2. Otherwise, fallback to localStorage mock auth
-      const authState = localStorage.getItem("auth_authenticated");
+      // 2. Otherwise, fallback to sessionStorage mock auth
+      const authState = sessionStorage.getItem("auth_authenticated");
       if (authState === "true") {
         Promise.resolve().then(() => {
           setIsAuthenticated(true);
@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Fallback: mock login
       setIsAuthenticated(true);
       setUser({ id: "mock-id", email: email || "swastik@example.com", name: "SWASTIK" });
-      localStorage.setItem("auth_authenticated", "true");
+      sessionStorage.setItem("auth_authenticated", "true");
     }
   };
 
@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Fallback: mock signup
       setIsAuthenticated(true);
       setUser({ id: "mock-id", email, name: "SWASTIK" });
-      localStorage.setItem("auth_authenticated", "true");
+      sessionStorage.setItem("auth_authenticated", "true");
     }
   };
 
@@ -104,7 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Fallback: mock logout
       setIsAuthenticated(false);
       setUser(null);
-      localStorage.removeItem("auth_authenticated");
+      sessionStorage.removeItem("auth_authenticated");
     }
     router.push("/auth");
   };
@@ -122,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Fallback: mock login with Google
       setIsAuthenticated(true);
       setUser({ id: "mock-google-id", email: "google-user@example.com", name: "Google User" });
-      localStorage.setItem("auth_authenticated", "true");
+      sessionStorage.setItem("auth_authenticated", "true");
     }
   };
 

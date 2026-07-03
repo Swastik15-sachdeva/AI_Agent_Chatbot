@@ -10,5 +10,10 @@ const isKeyValid = supabaseAnonKey && supabaseAnonKey.length > 50; // JWT keys a
 export const isSupabaseConfigured = !!(isUrlValid && isKeyValid);
 
 export const supabase: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(supabaseUrl!, supabaseAnonKey!)
+  ? createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        storage: typeof window !== 'undefined' ? window.sessionStorage : undefined,
+        persistSession: true
+      }
+    })
   : null;

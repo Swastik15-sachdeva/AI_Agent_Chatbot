@@ -367,6 +367,7 @@ export default function HomePage() {
         <ChatWindow
           messages={activeSession ? activeSession.messages : []}
           isLoading={isLoading}
+          sessionId={activeSessionId}
         />
 
         {/* Floating Bottom Input Control Bar */}
