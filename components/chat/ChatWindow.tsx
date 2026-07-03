@@ -78,7 +78,7 @@ export default function ChatWindow({ messages, isLoading, sessionId }: ChatWindo
   return (
     <div
       ref={scrollContainerRef}
-      className="flex-1 bg-zinc-50 dark:bg-zinc-900 overflow-y-auto px-4 md:px-8 py-6 space-y-6 scrollbar-thin"
+      className="flex-1 bg-zinc-50 dark:bg-transparent overflow-y-auto px-4 md:px-8 py-6 space-y-6 scrollbar-thin relative z-10"
     >
       {messages.length === 0 ? (
         <div className="h-full flex flex-col items-center justify-center text-center p-8 select-none">

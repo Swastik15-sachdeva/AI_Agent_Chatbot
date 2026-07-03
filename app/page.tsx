@@ -358,6 +358,10 @@ export default function HomePage() {
 
       {/* Main Chat Area Workspace */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+        {/* Ambient Glowing Blobs */}
+        <div className="absolute top-[10%] left-[20%] w-[450px] h-[450px] rounded-full bg-purple-600/8 blur-[120px] pointer-events-none z-0 dark:block hidden animate-pulse" style={{ animationDuration: '8s' }} />
+        <div className="absolute bottom-[20%] right-[10%] w-[400px] h-[400px] rounded-full bg-[#E2A478]/4 blur-[130px] pointer-events-none z-0 dark:block hidden animate-pulse" style={{ animationDuration: '12s' }} />
+
         {/* Floating Expand Sidebar Button */}
         {isSidebarCollapsed && (
           <button
@@ -377,7 +381,7 @@ export default function HomePage() {
         />
 
         {/* Floating Bottom Input Control Bar */}
-        <div className="w-full bg-linear-to-t from-zinc-50 dark:from-zinc-900 via-zinc-50/90 dark:via-zinc-900/90 to-transparent p-4 md:p-6 shrink-0 relative z-20">
+        <div className="w-full bg-linear-to-t from-zinc-50 dark:from-[#141018] via-zinc-50/90 dark:via-[#141018]/90 to-transparent p-4 md:p-6 shrink-0 relative z-20">
           <ClaudeChatInput onSendMessage={handleSendMessage} />
         </div>
       </div>
