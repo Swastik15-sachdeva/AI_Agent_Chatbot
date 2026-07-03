@@ -53,7 +53,17 @@ export class BrowserService {
         });
       });
 
-      return results.filter(r => r.title && r.url);
+      const filtered = results.filter(r => r.title && r.url);
+
+      if (!isHeadless) {
+        console.log('Browser is running in headed mode. Waiting for user to close the browser...');
+        await new Promise<void>((resolve) => {
+          page.on('close', () => resolve());
+          browser.on('disconnected', () => resolve());
+        });
+      }
+
+      return filtered;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error during Yahoo direct search:', errorMessage);
@@ -89,7 +99,7 @@ export class BrowserService {
       const filtered = results.filter(r => r.title && r.url);
       
       // Clean Bing redirection URLs
-      return filtered.map(r => {
+      const cleaned = filtered.map(r => {
         try {
           const parsed = new URL(r.url);
           const uParam = parsed.searchParams.get('u');
@@ -105,6 +115,16 @@ export class BrowserService {
         }
         return r;
       });
+
+      if (!isHeadless) {
+        console.log('Browser is running in headed mode. Waiting for user to close the browser...');
+        await new Promise<void>((resolve) => {
+          page.on('close', () => resolve());
+          browser.on('disconnected', () => resolve());
+        });
+      }
+
+      return cleaned;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error during Bing fallback search:', errorMessage);
@@ -151,21 +171,41 @@ export class BrowserService {
         ? textContent.slice(0, maxChars) + "\n\n[Content Truncated due to length limit]" 
         : textContent;
 
-      return {
+      const result = {
         url,
         title,
         textContent: truncatedText,
         screenshotBase64
       };
+
+      if (!isHeadless) {
+        console.log('Browser is running in headed mode. Waiting for user to close the browser...');
+        await new Promise<void>((resolve) => {
+          page.on('close', () => resolve());
+          browser.on('disconnected', () => resolve());
+        });
+      }
+
+      return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`Error scraping URL ${url}:`, errorMessage);
-      return {
+      const errorResult = {
         url,
         title: 'Error Loading Page',
         textContent: `Failed to load the website: ${errorMessage}`,
         screenshotBase64: ''
       };
+
+      if (!isHeadless) {
+        console.log('Browser is running in headed mode. Waiting for user to close the browser...');
+        await new Promise<void>((resolve) => {
+          page.on('close', () => resolve());
+          browser.on('disconnected', () => resolve());
+        });
+      }
+
+      return errorResult;
     } finally {
       await browser.close();
     }
