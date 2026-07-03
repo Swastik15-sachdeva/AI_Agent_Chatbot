@@ -4,7 +4,7 @@ import { AgentTool } from '../types';
 
 export const searchTool: AgentTool = {
   name: 'web_search',
-  description: 'Search the web using DuckDuckGo and retrieve matching titles, descriptions, and links.',
+  description: 'Search the web using Yahoo/Bing and retrieve matching titles, descriptions, and links.',
   parameters: {
     type: Type.OBJECT,
     properties: {

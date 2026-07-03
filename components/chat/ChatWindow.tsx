@@ -87,7 +87,7 @@ export default function ChatWindow({ messages, isLoading, sessionId }: ChatWindo
           </div>
           <h3 className="text-lg font-serif font-semibold text-zinc-800 dark:text-zinc-200">Start an Agentic Chat</h3>
           <p className="text-sm text-zinc-500 max-w-sm mt-1">
-            Ask complex questions! The agent will use Google Gemini, DuckDuckGo search, and Playwright scraping to find answers.
+            Ask complex questions! The agent will use Google Gemini, Yahoo/Bing search, and Playwright scraping to find answers.
           </p>
         </div>
       ) : (
