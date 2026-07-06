@@ -1,5 +1,527 @@
+import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
+import { ToolRegistry } from '../../lib/tools/registry';
+import { extractDocumentText } from '../../lib/utils/documentParser';
+
+export interface AgentStep {
+  type: 'thought' | 'tool_call' | 'tool_result' | 'error';
+  title: string;
+  content: string;
+  screenshot?: string;
+}
+
+export interface ChatResponse {
+  success: boolean;
+  response: string;
+  steps: AgentStep[];
+}
+
+export interface ChatHistoryMessage {
+  role: string;
+  content: string;
+}
+
+export interface GeminiContentPart {
+  text?: string;
+  inlineData?: {
+    mimeType: string;
+    data: string;
+  };
+  functionCall?: {
+    name: string;
+    args: Record<string, unknown>;
+  };
+  functionResponse?: {
+    name: string;
+    response: { output: unknown };
+  };
+}
+
+export interface GeminiContent {
+  role: string;
+  parts: GeminiContentPart[];
+}
+
+export interface OpenRouterMessagePart {
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: {
+    url: string;
+  };
+}
+
+export interface OpenRouterMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | OpenRouterMessagePart[];
+  tool_calls?: unknown[];
+  tool_call_id?: string;
+  name?: string;
+}
+
+export interface OpenRouterToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+const getBaseSystemInstruction = () => "You are an advanced Agentic AI helper with real-time web access and multimodal processing capabilities. " +
+  "You have tools available: web_search, web_scrape, deep_research, and image_generator. " +
+  "1. Real-Time Data: If the user asks for real-time or external data (such as weather, news, sports updates, etc.), you MUST use the appropriate tool (web_search, web_scrape, or deep_research) to fetch this information. Never say you cannot access live details. " +
+  "You MUST always provide the source links (complete clickable markdown hyperlinks, e.g. [Title of Source](URL)) to the websites you retrieved the real-time information from so that the user can verify them. Never output plain domains or text without markdown link markup. " +
+  "2. Image Generation: If the user prompts you to generate, create, draw, or paint an image, you MUST call the `image_generator` tool. Once the tool returns the image bytes, you MUST render and display the image directly in your final response using standard markdown image syntax: `![AI Generated Image](data:image/jpeg;base64,<base64_data>)` (replace <base64_data> with the raw imageBytes from the tool response). " +
+  "3. Learning Resources: Whenever the user asks you about any topic, framework, programming language, or concept in detail, you MUST include a dedicated 'Recommended Learning Resources' section at the end of your response. In this section, provide direct, high-quality markdown links to the best learning platforms for that topic (such as Coursera, edX, Udemy, freeCodeCamp, official documentation, YouTube, etc.) along with a brief description of what each offers. " +
+  `\n\nCurrent Date and Time: ${new Date().toLocaleString('en-US', { timeZoneName: 'short' })}`;
+
 export class AiService {
-  async generateText(prompt: string): Promise<string> {
-    return `AI response placeholder for prompt: ${prompt}`;
+  /**
+   * Main entry point to orchestrate agent reasoning loop.
+   */
+  async generateText(
+    userMessage: string,
+    history: ChatHistoryMessage[] = [],
+    isThinkingEnabled: boolean = false,
+    selectedModel: 'gemini' | 'openrouter' = 'gemini',
+    files?: Array<{ name: string; type: string; base64?: string }>,
+    forcedFeatures?: {
+      browserSearch?: boolean;
+      coding?: boolean;
+      deepResearch?: boolean;
+    }
+  ): Promise<ChatResponse> {
+    const steps: AgentStep[] = [];
+    const geminiKey = process.env.GEMINI_API_KEY;
+
+    // Check if user selected OpenRouter directly
+    if (selectedModel === 'openrouter') {
+      return this.runOpenRouterFallback(userMessage, history, steps, files, forcedFeatures);
+    }
+
+    // Check if Gemini key is available
+    if (!geminiKey || geminiKey.includes('your_gemini')) {
+      console.warn('Gemini API key missing. Falling back directly to OpenRouter.');
+      return this.runOpenRouterFallback(userMessage, history, steps, files, forcedFeatures);
+    }
+
+    try {
+      // 1. Initialize Gemini SDK
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      
+      // Build conversation history in Gemini API format
+      // Roles: 'user', 'model', 'tool'
+      const chatHistory: GeminiContent[] = [];
+      
+      // Add system instruction depending on thinking mode and forced features
+      let systemInstruction = isThinkingEnabled
+        ? `${getBaseSystemInstruction()} Think deeply and step-by-step to formulate your thoughts and execute your plan.`
+        : getBaseSystemInstruction();
+
+      if (forcedFeatures) {
+        if (forcedFeatures.browserSearch) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST use the web_search tool to answer the user's query. Do not rely solely on your internal knowledge.";
+        }
+        if (forcedFeatures.deepResearch) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST use the deep_research tool to answer the user's query. Provide a comprehensive, in-depth research report.";
+        }
+        if (forcedFeatures.coding) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST prioritize writing high-quality code, logic, or step-by-step algorithms. Format your code blocks cleanly.";
+        }
+      }
+
+      // Convert history (keeping only the last 10 messages to save tokens)
+      const recentHistory = history.slice(-10);
+      recentHistory.forEach(msg => {
+        if (msg.role === 'user') {
+          chatHistory.push({ role: 'user', parts: [{ text: msg.content }] });
+        } else if (msg.role === 'assistant' || msg.role === 'model') {
+          chatHistory.push({ role: 'model', parts: [{ text: msg.content }] });
+        }
+      });
+
+      // Add new user prompt with optional files/images/documents
+      const userParts: GeminiContentPart[] = [{ text: userMessage }];
+      let documentContext = '';
+
+      if (files && files.length > 0) {
+        files.forEach(file => {
+          if (!file.base64) return;
+
+          // If it's an image, pass it natively as inlineData
+          if (file.type.startsWith('image/')) {
+            userParts.push({
+              inlineData: {
+                mimeType: file.type,
+                data: file.base64
+              }
+            });
+          }
+          // If it's a PDF, pass it natively as inlineData
+          else if (file.type === 'application/pdf') {
+            userParts.push({
+              inlineData: {
+                mimeType: file.type,
+                data: file.base64
+              }
+            });
+          }
+          // Otherwise, extract plain-text representation (docx, pptx, xlsx, txt, csv, etc.)
+          else {
+            const extractedText = extractDocumentText(file.name, file.base64, file.type);
+            documentContext += `\n\n[Attached Document: ${file.name}]\n${extractedText}`;
+          }
+        });
+      }
+
+      if (documentContext) {
+        userParts[0].text = `${userParts[0].text}${documentContext}`;
+      }
+
+      chatHistory.push({ role: 'user', parts: userParts });
+
+      let loopCount = 0;
+      const maxLoops = 5;
+      let finalResponseText = '';
+
+      while (loopCount < maxLoops) {
+        loopCount++;
+        
+        // Define tool declarations dynamically from the modular ToolRegistry
+        const toolDeclarations = ToolRegistry.getToolDeclarations();
+
+        // Call Gemini
+        const response = await ai.models.generateContent({
+          model: isThinkingEnabled ? (process.env.GEMINI_THINKING_MODEL || 'gemini-2.5-pro') : (process.env.GEMINI_MODEL || 'gemini-1.5-flash'),
+          contents: chatHistory,
+          config: {
+            systemInstruction,
+            tools: [{ functionDeclarations: toolDeclarations }]
+          }
+        });
+
+        // Record model's text thought if any
+        if (response.text) {
+          finalResponseText = response.text;
+          steps.push({
+            type: 'thought',
+            title: `Thought (Step ${loopCount})`,
+            content: response.text
+          });
+        }
+
+        const functionCalls = response.functionCalls;
+
+        // If no more tool calls, we are done
+        if (!functionCalls || functionCalls.length === 0) {
+          if (response.text) {
+            chatHistory.push({ role: 'model', parts: [{ text: response.text }] });
+          }
+          if (!response.text && finalResponseText) {
+            // Use last saved response text
+          } else if (response.text) {
+            finalResponseText = response.text;
+          } else {
+            finalResponseText = "Processing complete.";
+          }
+          break;
+        }
+
+        // We have function calls! Group thoughts (if any) and function calls in a single model turn.
+        const modelParts: GeminiContentPart[] = [];
+        if (response.text) {
+          modelParts.push({ text: response.text });
+        }
+        
+        for (const call of functionCalls) {
+          if (call.name) {
+            modelParts.push({
+              functionCall: { name: call.name, args: call.args as Record<string, unknown> }
+            });
+          }
+        }
+        
+        chatHistory.push({
+          role: 'model',
+          parts: modelParts
+        });
+
+        // Now execute all calls in parallel/sequence and build a single tool response turn
+        const toolResponseParts: GeminiContentPart[] = [];
+        
+        for (const call of functionCalls) {
+          const { name, args } = call;
+          if (!name) continue;
+
+          steps.push({
+            type: 'tool_call',
+            title: `Running Tool: ${name}`,
+            content: `Arguments: ${JSON.stringify(args, null, 2)}`
+          });
+
+          let result: unknown;
+          let screenshot: string | undefined;
+
+          try {
+            // Execute the tool dynamically using the ToolRegistry
+            const toolResult = await ToolRegistry.executeTool(name, args as Record<string, unknown>);
+            result = toolResult.output;
+            screenshot = toolResult.screenshot;
+          } catch (toolErr) {
+            const errorMessage = toolErr instanceof Error ? toolErr.message : String(toolErr);
+            result = { error: `Tool execution failed: ${errorMessage}` };
+          }
+
+          // Record tool output step
+          steps.push({
+            type: 'tool_result',
+            title: `Tool Result: ${name}`,
+            content: JSON.stringify(result, null, 2),
+            screenshot
+          });
+
+          toolResponseParts.push({
+            functionResponse: {
+              name,
+              response: { output: result }
+            }
+          });
+        }
+
+        // Push all responses as parts of a single tool turn
+        chatHistory.push({
+          role: 'tool',
+          parts: toolResponseParts
+        });
+      }
+
+      return {
+        success: true,
+        response: finalResponseText,
+        steps
+      };
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Gemini execution error, falling back to OpenRouter:', errorMessage);
+      steps.push({
+        type: 'error',
+        title: 'Gemini Error',
+        content: `Error: ${errorMessage}. Falling back to OpenRouter...`
+      });
+      return this.runOpenRouterFallback(userMessage, history, steps, files, forcedFeatures);
+    }
+  }
+
+  /**
+   * Fallback model generation using OpenRouter.
+   */
+  private async runOpenRouterFallback(
+    userMessage: string,
+    history: ChatHistoryMessage[],
+    steps: AgentStep[],
+    files?: Array<{ name: string; type: string; base64?: string }>,
+    forcedFeatures?: {
+      browserSearch?: boolean;
+      coding?: boolean;
+      deepResearch?: boolean;
+    }
+  ): Promise<ChatResponse> {
+    const orKey = process.env.OPENROUTER_API_KEY;
+
+    if (!orKey || orKey.includes('your_openrouter') || !orKey.startsWith('sk-or-')) {
+      return {
+        success: false,
+        response: "I was unable to process your request because the Gemini API key is invalid/missing, and OpenRouter is not configured with a valid key. Please check your credentials in .env.local.",
+        steps
+      };
+    }
+
+    const orModel = process.env.OPENROUTER_MODEL || 'openrouter/free';
+
+    steps.push({
+      type: 'thought',
+      title: 'OpenRouter Fallback',
+      content: `Invoking the fallback reasoning model on OpenRouter (${orModel})...`
+    });
+
+    try {
+      const openai = new OpenAI({
+        baseURL: 'https://openrouter.ai/api/v1',
+        apiKey: orKey,
+      });
+
+      const messages: OpenRouterMessage[] = [];
+
+      // System instruction
+      let systemInstruction = getBaseSystemInstruction();
+      if (forcedFeatures) {
+        if (forcedFeatures.browserSearch) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST use the web_search tool to answer the user's query. Do not rely solely on your internal knowledge.";
+        }
+        if (forcedFeatures.deepResearch) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST use the deep_research tool to answer the user's query. Provide a comprehensive, in-depth research report.";
+        }
+        if (forcedFeatures.coding) {
+          systemInstruction += " SYSTEM INSTRUCTION: You MUST prioritize writing high-quality code, logic, or step-by-step algorithms. Format your code blocks cleanly.";
+        }
+      }
+
+      messages.push({
+        role: 'system',
+        content: systemInstruction
+      });
+
+      // User history
+      history.forEach(msg => {
+        messages.push({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        });
+      });
+
+      // New prompt with optional files/images/documents
+      const contentParts: OpenRouterMessagePart[] = [{ type: 'text', text: userMessage }];
+      let documentContext = '';
+      
+      if (files && files.length > 0) {
+        files.forEach(file => {
+          if (!file.base64) return;
+
+          if (file.type.startsWith('image/')) {
+            contentParts.push({
+              type: 'image_url',
+              image_url: {
+                url: `data:${file.type};base64,${file.base64}`
+              }
+            });
+          } else {
+            const extractedText = extractDocumentText(file.name, file.base64, file.type);
+            documentContext += `\n\n[Attached Document: ${file.name}]\n${extractedText}`;
+          }
+        });
+      }
+      
+      if (documentContext) {
+        contentParts[0].text = `${contentParts[0].text}${documentContext}`;
+      }
+
+      messages.push({
+        role: 'user',
+        content: contentParts
+      });
+
+      // Convert tool declarations to OpenAI format
+      const orTools = ToolRegistry.getToolDeclarations().map(tool => ({
+        type: 'function' as const,
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters
+        }
+      })) as unknown as OpenAI.Chat.ChatCompletionTool[];
+
+      let loopCount = 0;
+      const maxLoops = 5;
+      let finalAnswer = '';
+
+      while (loopCount < maxLoops) {
+        loopCount++;
+
+        const completion = await openai.chat.completions.create({
+          model: orModel,
+          messages: messages as unknown as OpenAI.Chat.ChatCompletionMessageParam[],
+          tools: orTools
+        });
+
+        const responseMessage = completion.choices[0]?.message;
+        if (!responseMessage) {
+          finalAnswer = 'Empty response received from OpenRouter.';
+          break;
+        }
+
+        // If the model output text thought
+        if (responseMessage.content) {
+          finalAnswer = responseMessage.content;
+          steps.push({
+            type: 'thought',
+            title: `Thought (Fallback Step ${loopCount})`,
+            content: responseMessage.content
+          });
+        }
+
+        const toolCalls = responseMessage.tool_calls;
+
+        // If no tool calls, we are done
+        if (!toolCalls || toolCalls.length === 0) {
+          break;
+        }
+
+        // Push assistant response (containing tool calls) to messages
+        messages.push({
+          role: 'assistant',
+          content: responseMessage.content || '',
+          tool_calls: toolCalls
+        });
+
+        for (const tc of toolCalls) {
+          const toolCall = tc as OpenRouterToolCall;
+          const { name } = toolCall.function;
+          let args: Record<string, unknown>;
+          try {
+            args = JSON.parse(toolCall.function.arguments);
+          } catch {
+            args = {};
+          }
+
+          steps.push({
+            type: 'tool_call',
+            title: `Running Tool: ${name}`,
+            content: `Arguments: ${JSON.stringify(args, null, 2)}`
+          });
+
+          let result: unknown;
+          let screenshot: string | undefined;
+
+          try {
+            const toolResult = await ToolRegistry.executeTool(name, args);
+            result = toolResult.output;
+            screenshot = toolResult.screenshot;
+          } catch (toolErr) {
+            const errorMessage = toolErr instanceof Error ? toolErr.message : String(toolErr);
+            result = { error: `Tool execution failed: ${errorMessage}` };
+          }
+
+          steps.push({
+            type: 'tool_result',
+            title: `Tool Result: ${name}`,
+            content: JSON.stringify(result, null, 2),
+            screenshot
+          });
+
+          // Add tool output to messages
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            name: name,
+            content: JSON.stringify(result)
+          });
+        }
+      }
+
+      return {
+        success: true,
+        response: finalAnswer || "Processing complete.",
+        steps
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('OpenRouter execution error:', errorMessage);
+      return {
+        success: false,
+        response: `Both Gemini and OpenRouter fallback failed. Error detail: ${errorMessage}`,
+        steps
+      };
+    }
   }
 }
